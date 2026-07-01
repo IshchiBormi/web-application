@@ -3,6 +3,7 @@
 package upload
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log"
@@ -13,6 +14,13 @@ import (
 	"github.com/ishchibormi/backend/pkg/httpx"
 	"github.com/ishchibormi/backend/pkg/storage"
 )
+
+// Rasm siqishda uzun tomon uchun maksimal o'lcham (px), fayl turi bo'yicha.
+// Avatar kichik ko'rsatiladi, e'lon rasmlari kattaroq.
+var maxDimByKind = map[string]int{
+	"avatar": 512,
+	"elon":   1600,
+}
 
 type Handler struct {
 	Storage *storage.Service
@@ -88,6 +96,16 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Butun faylni o'qib olamiz (maxBytes cheklovi yuqorida qo'yilgan), so'ng
+	// rasm bo'lsa hajmini kichraytiramiz — sifatni ko'zga ko'rinarli darajada
+	// buzmasdan. Siqib bo'lmasa (webp yoki xato) asl baytlar ishlatiladi.
+	raw, err := io.ReadAll(file)
+	if err != nil {
+		httpx.Err(w, httpx.NewError(400, "no_file", "fayl o'qib bo'lmadi"))
+		return
+	}
+	body := compressImage(raw, ct, maxDimByKind[kind])
+
 	// Build a prefix that scopes the object to this user (and entity, if any).
 	// The optional scope is always nested UNDER the user's own prefix so a
 	// client can't redirect uploads into another user's namespace.
@@ -96,7 +114,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		prefix = prefix + "/" + sanitize(scope)
 	}
 
-	out, err := h.Storage.Upload(r.Context(), prefix, header.Filename, ct, file)
+	out, err := h.Storage.Upload(r.Context(), prefix, header.Filename, ct, bytes.NewReader(body))
 	if err != nil {
 		log.Printf("upload failed: %v", err)
 		httpx.Err(w, httpx.NewError(500, "upload_failed", "fayl yuklab bo'lmadi"))
