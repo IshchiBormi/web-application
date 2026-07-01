@@ -93,6 +93,28 @@ jobs:
             git fetch --all
             git reset --hard origin/main
 
+            echo "==> Telegram bot sozlamalarini .env ga yozish"
+            # MUHIM: .env gitignore qilingan, shuning uchun "git reset --hard"
+            # unga tegmaydi. Bot token/username shu yerda o'rnatilmasa, server
+            # eski/bo'sh qiymatda qoladi -> bot ishga tushmaydi va login
+            # sahifasidagi havola noto'g'ri bo'ladi. Mavjud .env kalitlari
+            # (JWT, Mongo va h.k.) saqlanadi, faqat kerakli kalitlar yangilanadi.
+            set_env() {
+              key="$1"; value="$2"; tmp="$(mktemp)"
+              if [ -f .env ]; then grep -v -E "^${key}=" .env > "$tmp" || true; else : > "$tmp"; fi
+              printf '%s=%s\n' "$key" "$value" >> "$tmp"
+              mv "$tmp" .env
+            }
+
+            BOT_TOKEN='${{ secrets.TELEGRAM_BOT_TOKEN }}'
+            if [ -z "$BOT_TOKEN" ]; then
+              echo "XATO: TELEGRAM_BOT_TOKEN GitHub secret'i o'rnatilmagan."
+              echo "Qo'shish: Repo -> Settings -> Secrets and variables -> Actions -> New repository secret."
+              exit 1
+            fi
+            set_env TELEGRAM_BOT_TOKEN "$BOT_TOKEN"
+            set_env TELEGRAM_BOT_USERNAME Ishchi_bormi_auth_bot
+
             echo "==> Konteynerlarni qayta build qilib ishga tushirish"
             docker compose up --build -d --remove-orphans
 

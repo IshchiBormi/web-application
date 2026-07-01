@@ -45,9 +45,12 @@ func (h *Handler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, err)
 		return
 	}
-	resp := requestOTPResp{
-		TGToken: tok,
-		BotURL:  "https://t.me/" + h.cfg.TelegramBotUsername + "?start=" + tok,
+	resp := requestOTPResp{TGToken: tok}
+	// Username sozlanmagan bo'lsa bo'sh qoldiramiz — aks holda "https://t.me/?start="
+	// kabi buzuq havola qaytadi va frontend zaxira havolasi (NEXT_PUBLIC_BOT_USERNAME)
+	// hech qachon ishlamaydi.
+	if h.cfg.TelegramBotUsername != "" {
+		resp.BotURL = "https://t.me/" + h.cfg.TelegramBotUsername + "?start=" + tok
 	}
 	httpx.JSON(w, 200, resp)
 }
