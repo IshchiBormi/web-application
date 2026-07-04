@@ -12,6 +12,7 @@ import (
 	"github.com/ishchibormi/backend/internal/models"
 	"github.com/ishchibormi/backend/internal/notification"
 	"github.com/ishchibormi/backend/pkg/httpx"
+	"github.com/ishchibormi/backend/pkg/userlookup"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -480,6 +481,7 @@ func (h *Handler) MyApplications(w http.ResponseWriter, r *http.Request) {
 			out = append(out, a)
 		}
 	}
+	h.liveAppAvatars(r.Context(), out)
 	httpx.JSON(w, 200, out)
 }
 
@@ -499,6 +501,11 @@ func (h *Handler) MyElonsApplications(w http.ResponseWriter, r *http.Request) {
 			grouped[a.ElonID.Hex()] = append(grouped[a.ElonID.Hex()], a)
 		}
 	}
+	groupsList := make([][]models.Application, 0, len(grouped))
+	for _, apps := range grouped {
+		groupsList = append(groupsList, apps)
+	}
+	h.liveAppAvatars(r.Context(), groupsList...)
 	httpx.JSON(w, 200, grouped)
 }
 
@@ -522,6 +529,7 @@ func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 			out = append(out, a)
 		}
 	}
+	h.liveAppAvatars(r.Context(), out)
 	httpx.JSON(w, 200, out)
 }
 
@@ -531,4 +539,28 @@ func loadUser(ctx context.Context, col *mongo.Collection, id primitive.ObjectID)
 		return nil, errors.New("not_found")
 	}
 	return &u, nil
+}
+
+// liveAppAvatars — arizalardagi ishchi va ish beruvchi avatarini joriy (eng
+// oxirgi) qiymatga yangilaydi. Saqlangan snapshot emas, jonli: profil rasmi
+// keyin qo'yilsa/o'zgartirilsa ham process va tarix ro'yxatlarida darhol yangisi
+// ko'rinadi. Bir nechta ro'yxat berilsa ham bitta so'rov bilan ishlaydi.
+func (h *Handler) liveAppAvatars(ctx context.Context, groups ...[]models.Application) {
+	ids := []primitive.ObjectID{}
+	for _, apps := range groups {
+		for _, a := range apps {
+			ids = append(ids, a.WorkerID, a.EmployerID)
+		}
+	}
+	m := userlookup.Avatars(ctx, h.Users, ids)
+	for _, apps := range groups {
+		for i := range apps {
+			if v, ok := m[apps[i].WorkerID]; ok {
+				apps[i].WorkerAvatarURL = v
+			}
+			if v, ok := m[apps[i].EmployerID]; ok {
+				apps[i].OwnerAvatarURL = v
+			}
+		}
+	}
 }

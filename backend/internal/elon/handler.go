@@ -15,6 +15,7 @@ import (
 	"github.com/ishchibormi/backend/pkg/geocode"
 	"github.com/ishchibormi/backend/pkg/httpx"
 	"github.com/ishchibormi/backend/pkg/storage"
+	"github.com/ishchibormi/backend/pkg/userlookup"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -176,7 +177,9 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		_, _ = h.Col.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$inc": bson.M{"viewsCount": 1}})
 	}()
-	httpx.JSON(w, 200, e)
+	list := []models.Elon{e}
+	h.liveOwnerAvatars(r.Context(), list)
+	httpx.JSON(w, 200, list[0])
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
@@ -341,8 +344,31 @@ func (h *Handler) Feed(w http.ResponseWriter, r *http.Request) {
 			out = append(out, e)
 		}
 	}
+	h.liveOwnerAvatars(r.Context(), out)
 	total, _ := h.Col.CountDocuments(r.Context(), filter)
 	httpx.JSON(w, 200, map[string]any{"items": out, "page": page, "limit": limit, "total": total})
+}
+
+// liveOwnerAvatars — e'lonlardagi ish beruvchi avatarini joriy (eng oxirgi)
+// qiymatga yangilaydi. Saqlangan snapshot emas, jonli: foydalanuvchi rasmini
+// e'londan keyin qo'ysa/o'zgartirsa ham feed va boshqa ro'yxatlarda darhol
+// yangisi ko'rinadi. Bir nechta ro'yxat (masalan active+archived) berilsa ham
+// bitta so'rov bilan ishlaydi (N+1 yo'q).
+func (h *Handler) liveOwnerAvatars(ctx context.Context, groups ...[]models.Elon) {
+	ids := []primitive.ObjectID{}
+	for _, es := range groups {
+		for _, e := range es {
+			ids = append(ids, e.OwnerID)
+		}
+	}
+	m := userlookup.Avatars(ctx, h.Users, ids)
+	for _, es := range groups {
+		for i := range es {
+			if v, ok := m[es[i].OwnerID]; ok {
+				es[i].OwnerAvatarURL = v
+			}
+		}
+	}
 }
 
 // sitemapMaxLimit — XML sitemap uchun bitta so'rovda qaytariladigan maksimal
@@ -441,6 +467,7 @@ func (h *Handler) MyElons(w http.ResponseWriter, r *http.Request) {
 			archived = append(archived, e)
 		}
 	}
+	h.liveOwnerAvatars(r.Context(), active, archived)
 	httpx.JSON(w, 200, map[string]any{"active": active, "archived": archived})
 }
 
