@@ -90,6 +90,16 @@ export default function ElonDetails() {
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
       {/* ── Main column ─────────────── */}
       <div className="grid gap-4">
+        {/* Batafsil ma'lumot — sarlavha ostida birinchi bo'lib ko'rsatiladi */}
+        <section className="card p-5">
+          <h2 className="font-semibold heading flex items-center gap-2 mb-3">
+            <FileText size={18} /><T>Batafsil ma'lumot</T>
+          </h2>
+          <p className="text-sm leading-relaxed whitespace-pre-line muted">
+            <T>{e.description}</T>
+          </p>
+        </section>
+
         {/* Ish ma'lumotlari */}
         <section className="card p-5 relative overflow-hidden">
           <span className="absolute left-0 top-0 bottom-0 w-1 bg-brand-navy rounded-l-2xl" />
@@ -125,16 +135,6 @@ export default function ElonDetails() {
               </div>
             )}
           </div>
-        </section>
-
-        {/* Batafsil ma'lumot */}
-        <section className="card p-5">
-          <h2 className="font-semibold heading flex items-center gap-2 mb-3">
-            <FileText size={18} /><T>Batafsil ma'lumot</T>
-          </h2>
-          <p className="text-sm leading-relaxed whitespace-pre-line muted">
-            <T>{e.description}</T>
-          </p>
         </section>
 
         {/* Rasmlar */}
