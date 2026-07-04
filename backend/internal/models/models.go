@@ -116,6 +116,7 @@ type Elon struct {
 	OwnerName         string  `bson:"ownerName,omitempty" json:"ownerName"`
 	OwnerRating       float64 `bson:"ownerRating,omitempty" json:"ownerRating"`
 	OwnerReviewsCount int     `bson:"ownerReviewsCount,omitempty" json:"ownerReviewsCount"`
+	OwnerAvatarURL    string  `bson:"ownerAvatarUrl,omitempty" json:"ownerAvatarUrl"`
 	// Image URLs (stored on S3).
 	Images []string `bson:"images,omitempty" json:"images"`
 }

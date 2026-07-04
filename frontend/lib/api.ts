@@ -144,6 +144,7 @@ export interface Elon {
   createdAt: string;
   ownerName?: string;
   ownerRating?: number;
+  ownerAvatarUrl?: string;
   images?: string[];
 }
 export interface Application {

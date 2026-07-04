@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Info, Users, Calendar, MapPin, FileText, Wallet, ShieldCheck,
-  Phone, Send, Share2, UserRound, Image as ImageIcon, X,
+  Phone, Send, Share2, Image as ImageIcon, X,
 } from "lucide-react";
 import { api, Elon, getAccess } from "@/lib/api";
 import { Modal } from "@/components/Modal";
 import { ShareModal } from "@/components/ShareModal";
 import { MapView } from "@/components/ui/MapView";
+import { Avatar } from "@/components/ui/Avatar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Shell } from "@/components/Shell";
 import { ScriptToggle } from "@/components/ScriptToggle";
@@ -185,8 +186,8 @@ export default function ElonDetails() {
 
         {/* Owner card */}
         <section className="card p-5 text-center">
-          <div className="mx-auto h-16 w-16 rounded-full grid place-items-center" style={{ background: "rgba(34,158,217,0.12)" }}>
-            <UserRound size={28} className="text-tg-blue" />
+          <div className="flex justify-center">
+            <Avatar size="xl" name={e.ownerName} src={e.ownerAvatarUrl} />
           </div>
           <div className="mt-3 font-semibold heading">{e.ownerName || "Foydalanuvchi"}</div>
           <div className="mt-1 text-xs inline-flex items-center gap-1 muted">

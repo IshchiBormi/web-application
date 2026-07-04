@@ -148,6 +148,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		OwnerName:         strings.TrimSpace(owner.FirstName + " " + owner.LastName),
 		OwnerRating:       owner.Rating,
 		OwnerReviewsCount: owner.ReviewsCount,
+		OwnerAvatarURL:    owner.AvatarURL,
 		Images:            req.Images,
 	}
 	res, err := h.Col.InsertOne(r.Context(), e)
