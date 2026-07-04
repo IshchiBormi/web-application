@@ -129,11 +129,24 @@ jobs:
               echo "OGOHLANTIRISH: MONGO_URI secret o'rnatilmagan -> serverdagi mavjud .env qiymati saqlanadi."
             fi
 
-            echo "==> Konteynerlarni qayta build qilib ishga tushirish"
-            docker compose up --build -d --remove-orphans
+            echo "==> Server resurslari (debug: build yiqilsa sabab shu yerda ko'rinadi)"
+            free -h || true
+            df -h / || true
+            docker system df || true
+
+            echo "==> Build'dan oldin bo'sh joy uchun eski/dangling image'larni tozalash"
+            docker image prune -f || true
+
+            # Build va ishga tushirishni ajratamiz: shunda build xatosi aniq ko'rinadi
+            # (masalan frontend Next.js build'i RAM yetmay "Killed" bo'lsa).
+            echo "==> Image'larni build qilish"
+            docker compose build
+
+            echo "==> Konteynerlarni ishga tushirish"
+            docker compose up -d --remove-orphans
 
             echo "==> Eski image'larni tozalash"
-            docker image prune -f
+            docker image prune -f || true
 
             echo "==> Holat"
             docker compose ps
