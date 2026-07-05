@@ -85,7 +85,10 @@ func Load() Config {
 		TrustProxyHeaders:   envBool("TRUST_PROXY_HEADERS", false),
 		JWTAccessSecret:     envStr("JWT_ACCESS_SECRET", "dev-access-secret"),
 		JWTRefreshSecret:    envStr("JWT_REFRESH_SECRET", "dev-refresh-secret"),
-		JWTAccessTTL:        time.Duration(envInt("JWT_ACCESS_TTL_MIN", 60)) * time.Minute,
+		// 15 kun (21600 daqiqa). Frontend refresh oqimini ishlatmagani uchun
+		// foydalanuvchi seansi to'g'ridan-to'g'ri shu access token muddati bilan
+		// belgilanadi — qisqa qo'yilsa, logout qilmasa ham tez chiqib ketadi.
+		JWTAccessTTL:        time.Duration(envInt("JWT_ACCESS_TTL_MIN", 21600)) * time.Minute,
 		JWTRefreshTTL:       time.Duration(envInt("JWT_REFRESH_TTL_HRS", 720)) * time.Hour,
 		CORSOrigins:         strings.Split(envStr("CORS_ORIGINS", "http://localhost:3000"), ","),
 		AvatarDir:           envStr("AVATAR_DIR", "./data/avatars"),

@@ -115,6 +115,12 @@ jobs:
             set_env TELEGRAM_BOT_TOKEN "$BOT_TOKEN"
             set_env TELEGRAM_BOT_USERNAME Ishchi_bormi_auth_bot
 
+            # Access token muddati (daqiqada). 21600 = 15 kun. Serverdagi .env
+            # gitignore qilingani uchun bu qiymat har deploy'da majburan yoziladi
+            # — aks holda eski 60 (1 soat) qolib, foydalanuvchi logout qilmasa ham
+            # tez chiqib ketardi. Bu maxfiy emas, shuning uchun oddiy set_env.
+            set_env JWT_ACCESS_TTL_MIN 21600
+
             echo "==> MongoDB ulanishini .env ga yozish (GitHub secret bo'lsa)"
             # MONGO_URI maxfiy (parol bor) -> faqat GitHub secret orqali keladi,
             # hech qachon repoga yozilmaydi. Secret o'rnatilgan bo'lsa serverdagi
