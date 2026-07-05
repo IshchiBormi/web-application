@@ -96,6 +96,9 @@ func main() {
 	fbH := feedback.NewHandler(mdb)
 	uploadH := upload.NewHandler(s3svc)
 	adminH := admin.NewHandler(cfg, mdb, notif, s3svc)
+	// Background scheduler: delivers due scheduled broadcasts (checks every
+	// minute). Stops when ctx is cancelled on shutdown.
+	go adminH.RunScheduler(ctx)
 
 	// Rate limiting keys off the real client IP. Only trust forwarding headers
 	// when explicitly configured to sit behind a trusted proxy; otherwise XFF is
@@ -258,6 +261,7 @@ func main() {
 				r.Delete("/admins/{id}", adminH.DeleteAdmin)
 				r.Post("/broadcast", adminH.Broadcast)
 				r.Get("/broadcasts", adminH.ListBroadcasts)
+				r.Delete("/broadcasts/{id}", adminH.CancelBroadcast)
 			})
 		})
 	})

@@ -233,15 +233,16 @@ type Admin struct {
 // Broadcast — admin ommaviy bildirishnomasi tarixi. Yuborish fon jarayonida
 // bajariladi; SentCount va Status yuborish tugagach yangilanadi.
 type Broadcast struct {
-	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Title      string             `bson:"title" json:"title"`
-	Body       string             `bson:"body" json:"body"`
-	Region     string             `bson:"region,omitempty" json:"region"`
-	ActiveOnly bool               `bson:"activeOnly" json:"activeOnly"`
-	SentCount  int                `bson:"sentCount" json:"sentCount"`
-	Status     string             `bson:"status" json:"status"` // sending|done
-	CreatedBy  primitive.ObjectID `bson:"createdBy,omitempty" json:"createdBy"`
-	CreatedAt  time.Time          `bson:"createdAt" json:"createdAt"`
+	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Title       string             `bson:"title" json:"title"`
+	Body        string             `bson:"body" json:"body"`
+	Region      string             `bson:"region,omitempty" json:"region"`
+	ActiveOnly  bool               `bson:"activeOnly" json:"activeOnly"`
+	SentCount   int                `bson:"sentCount" json:"sentCount"`
+	Status      string             `bson:"status" json:"status"` // scheduled|sending|done
+	ScheduledAt *time.Time         `bson:"scheduledAt,omitempty" json:"scheduledAt,omitempty"`
+	CreatedBy   primitive.ObjectID `bson:"createdBy,omitempty" json:"createdBy"`
+	CreatedAt   time.Time          `bson:"createdAt" json:"createdAt"`
 }
 
 // AdminAuditLog

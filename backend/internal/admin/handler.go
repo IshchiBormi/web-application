@@ -1095,10 +1095,11 @@ func (h *Handler) DeleteAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 type broadcastReq struct {
-	Title      string `json:"title" validate:"required"`
-	Body       string `json:"body"`
-	Region     string `json:"region"`
-	ActiveOnly bool   `json:"activeOnly"`
+	Title       string `json:"title" validate:"required"`
+	Body        string `json:"body"`
+	Region      string `json:"region"`
+	ActiveOnly  bool   `json:"activeOnly"`
+	ScheduledAt string `json:"scheduledAt"` // RFC3339; empty/past = send now
 }
 
 // broadcastFilter builds the recipient query for a broadcast: never deleted;
@@ -1129,14 +1130,32 @@ func (h *Handler) Broadcast(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, httpx.NewError(400, "bad_request", "title required"))
 		return
 	}
+	// Optional schedule. A time more than a minute in the future defers delivery
+	// to the background scheduler; anything else sends immediately.
+	var scheduledAt *time.Time
+	if s := strings.TrimSpace(req.ScheduledAt); s != "" {
+		t, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			httpx.Err(w, httpx.NewError(400, "bad_time", "scheduledAt must be RFC3339"))
+			return
+		}
+		if t.After(time.Now().Add(time.Minute)) {
+			scheduledAt = &t
+		}
+	}
+
 	filter := broadcastFilter(req)
 	total, _ := h.Users.CountDocuments(r.Context(), filter)
 
 	adminID, _ := primitive.ObjectIDFromHex(httpx.AdminID(r))
+	status := "sending"
+	if scheduledAt != nil {
+		status = "scheduled"
+	}
 	bc := models.Broadcast{
 		Title: req.Title, Body: req.Body, Region: strings.TrimSpace(req.Region),
-		ActiveOnly: req.ActiveOnly, SentCount: 0, Status: "sending",
-		CreatedBy: adminID, CreatedAt: time.Now(),
+		ActiveOnly: req.ActiveOnly, SentCount: 0, Status: status,
+		ScheduledAt: scheduledAt, CreatedBy: adminID, CreatedAt: time.Now(),
 	}
 	res, err := h.Broadcasts.InsertOne(r.Context(), bc)
 	if err != nil {
@@ -1144,13 +1163,72 @@ func (h *Handler) Broadcast(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bc.ID = res.InsertedID.(primitive.ObjectID)
-	h.audit(r, "broadcast", req.Title, req.Body)
 
+	if scheduledAt != nil {
+		h.audit(r, "broadcast_schedule", req.Title, scheduledAt.Format(time.RFC3339))
+		httpx.JSON(w, 202, map[string]any{"id": bc.ID, "recipients": total, "status": "scheduled", "scheduledAt": scheduledAt})
+		return
+	}
+	h.audit(r, "broadcast", req.Title, req.Body)
 	// Fire-and-forget delivery. Uses a fresh background context because the
 	// request context is cancelled once we respond below.
 	go h.sendBroadcast(bc.ID, filter, req.Title, req.Body)
-
 	httpx.JSON(w, 202, map[string]any{"id": bc.ID, "recipients": total, "status": "sending"})
+}
+
+// RunScheduler polls for due scheduled broadcasts once a minute until ctx is
+// cancelled. Runs as a single background goroutine started in main.
+func (h *Handler) RunScheduler(ctx context.Context) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	h.dispatchDueBroadcasts(ctx) // catch anything already due at startup
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			h.dispatchDueBroadcasts(ctx)
+		}
+	}
+}
+
+// dispatchDueBroadcasts atomically claims each due broadcast (scheduled ->
+// sending via FindOneAndUpdate, so only one worker/tick can win) and delivers
+// it. Recipients are rebuilt from the stored segment.
+func (h *Handler) dispatchDueBroadcasts(ctx context.Context) {
+	for {
+		var bc models.Broadcast
+		err := h.Broadcasts.FindOneAndUpdate(ctx,
+			bson.M{"status": "scheduled", "scheduledAt": bson.M{"$lte": time.Now()}},
+			bson.M{"$set": bson.M{"status": "sending"}},
+			options.FindOneAndUpdate().SetReturnDocument(options.After),
+		).Decode(&bc)
+		if err != nil {
+			return // ErrNoDocuments (nothing due) or a transient error — retry next tick
+		}
+		filter := broadcastFilter(broadcastReq{Region: bc.Region, ActiveOnly: bc.ActiveOnly})
+		h.sendBroadcast(bc.ID, filter, bc.Title, bc.Body)
+	}
+}
+
+// CancelBroadcast deletes a broadcast that hasn't started sending yet.
+func (h *Handler) CancelBroadcast(w http.ResponseWriter, r *http.Request) {
+	id, err := primitive.ObjectIDFromHex(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Err(w, httpx.NewError(400, "bad_id", "bad id"))
+		return
+	}
+	res, err := h.Broadcasts.DeleteOne(r.Context(), bson.M{"_id": id, "status": "scheduled"})
+	if err != nil {
+		httpx.Err(w, err)
+		return
+	}
+	if res.DeletedCount == 0 {
+		httpx.Err(w, httpx.NewError(409, "not_scheduled", "only scheduled broadcasts can be cancelled"))
+		return
+	}
+	h.audit(r, "broadcast_cancel", id.Hex(), "")
+	httpx.JSON(w, 200, map[string]bool{"ok": true})
 }
 
 // sendBroadcast delivers one notification per matching user and marks the

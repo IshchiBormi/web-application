@@ -261,7 +261,8 @@ export interface Broadcast {
   region?: string;
   activeOnly: boolean;
   sentCount: number;
-  status: "sending" | "done";
+  status: "scheduled" | "sending" | "done";
+  scheduledAt?: string;
   createdAt: string;
 }
 
