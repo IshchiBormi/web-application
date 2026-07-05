@@ -1,5 +1,5 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/Providers";
 import {
   SITE_URL,
@@ -30,15 +30,24 @@ export const metadata: Metadata = {
   // Favicon / apple-touch-icon / shortcut — public/ fayllaridan (Metadata API).
   // Head'da dublikat bo'lmasligi uchun app/*.png|ico file-convention'lari olib
   // tashlangan; barcha ikonkalar shu yagona `icons` konfiguratsiyasidan chiqadi.
+  // Barcha ikonkalar rasmiy app-ikonasidan generatsiya qilingan (public/).
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
-      { url: "/favicon.png", type: "image/png", sizes: "48x48" },
-      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
-      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
+      { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon-48x48.png", type: "image/png", sizes: "48x48" },
+      { url: "/favicon-96x96.png", type: "image/png", sizes: "96x96" },
+      { url: "/favicon-192x192.png", type: "image/png", sizes: "192x192" },
+      { url: "/favicon-512x512.png", type: "image/png", sizes: "512x512" },
     ],
     shortcut: ["/favicon.ico"],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  // Windows plitka (legacy Edge/IE) — rasmiy ikonadan.
+  other: {
+    "msapplication-TileColor": "#0F1F56",
+    "msapplication-TileImage": "/mstile-150x150.png",
   },
   robots: {
     index: true,
@@ -74,13 +83,25 @@ export const metadata: Metadata = {
   formatDetection: { telephone: true },
 };
 
+// Next 15: themeColor/colorScheme viewport export'ida bo'lishi kerak (metadata
+// emas). Bu `<meta name="theme-color">` teglarini beradi — mobil brauzer paneli
+// va PWA ranggi manifest theme_color bilan mos (#0F1F56 — brend ko'k).
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#0F1F56" },
+    { media: "(prefers-color-scheme: dark)", color: "#0B1220" },
+  ],
+  colorScheme: "light dark",
+};
+
 // Google uchun tashkilot ma'lumoti (aloqa + ijtimoiy tarmoq profillari).
 const organizationLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
   name: SITE_NAME,
   url: SITE_URL,
-  logo: `${SITE_URL}/icons/icon-512.png`,
+  logo: `${SITE_URL}/favicon-512x512.png`,
+  image: `${SITE_URL}/favicon-512x512.png`,
   email: CONTACT.email,
   telephone: CONTACT.phoneHref.replace("tel:", ""),
   contactPoint: [
@@ -96,6 +117,16 @@ const organizationLd = {
   sameAs: SOCIAL_SAMEAS,
 };
 
+// Sayt/brend darajasidagi ma'lumot — Google saytni nomi bilan tanishi uchun.
+const websiteLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: SITE_NAME,
+  url: SITE_URL,
+  inLanguage: "uz",
+  publisher: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="uz" suppressHydrationWarning>
@@ -103,7 +134,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(organizationLd).replace(/</g, "\\u003c"),
+            __html: JSON.stringify([organizationLd, websiteLd]).replace(/</g, "\\u003c"),
           }}
         />
         <Providers>{children}</Providers>

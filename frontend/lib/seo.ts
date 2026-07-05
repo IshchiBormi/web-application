@@ -29,8 +29,9 @@ export const OG_IMAGE = "/img/OGimg.png";
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
 
-// Favicon/apple/PWA ikonkalari public/ ostidan Metadata API `icons` orqali beriladi
-// (layout.tsx). PWA ikonkalari public/icons/* (manifest.ts) orqali.
+// Favicon/apple/PWA ikonkalari rasmiy app-ikonasidan generatsiya qilingan va
+// public/ ildizida yotadi: brauzer ikonkalari Metadata API `icons` (layout.tsx),
+// PWA ikonkalari esa manifest.ts orqali beriladi.
 
 // API bazaviy manzili (server tomonda ham ishlaydi — absolyut bo'lishi shart).
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080").replace(/\/$/, "");
