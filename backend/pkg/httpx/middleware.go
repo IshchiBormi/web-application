@@ -109,6 +109,39 @@ func AdminID(r *http.Request) string {
 	return ""
 }
 
+// AdminRole returns the role stored in the admin JWT (superadmin|moderator|
+// support). Empty when the request wasn't authenticated as an admin.
+func AdminRole(r *http.Request) string {
+	if v, ok := r.Context().Value(CtxAdminRole).(string); ok {
+		return v
+	}
+	return ""
+}
+
+// RequireRole authorizes an admin request by role. "superadmin" is ALWAYS
+// allowed (full access), regardless of the passed list. Any other role passes
+// only if it is in `allowed`. Otherwise a 403 is returned.
+//
+// MUST be mounted AFTER AdminAuth so the role is present in the context. This is
+// the RBAC gap the admin panel had: previously every authenticated admin —
+// including a plain "moderator" — could hit every endpoint (delete users, send
+// broadcasts, manage other admins). Now each route declares who may call it.
+func RequireRole(allowed ...string) func(http.Handler) http.Handler {
+	set := map[string]bool{"superadmin": true}
+	for _, a := range allowed {
+		set[a] = true
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !set[AdminRole(r)] {
+				Err(w, NewError(http.StatusForbidden, "forbidden", "insufficient role"))
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func Recover(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {

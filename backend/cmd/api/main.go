@@ -202,20 +202,63 @@ func main() {
 		r.With(loginLimiter.Middleware("admin-login")).Post("/admin/login", adminH.Login)
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(httpx.AdminAuth(cfg.JWTAccessSecret))
+
+			// Overview — read-only, any authenticated admin (incl. support).
 			r.Get("/dashboard", adminH.Dashboard)
-			r.Get("/users", adminH.ListUsers)
-			r.Post("/users/{id}/block", adminH.BlockUser)
-			r.Delete("/users/{id}", adminH.DeleteUser)
-			r.Get("/elons", adminH.ListElons)
-			r.Delete("/elons/{id}", adminH.DeleteElon)
-			r.Get("/categories", adminH.ListCategories)
-			r.Patch("/categories/{id}/active", adminH.SetCategoryActive)
-			r.Get("/reports", repH.ListAdmin)
-			r.Patch("/reports/{id}/resolve", repH.Resolve)
-			r.Get("/feedback", fbH.ListAdmin)
-			r.Patch("/feedback/{id}/resolve", fbH.Resolve)
-			r.Post("/broadcast", adminH.Broadcast)
+			r.Get("/stats", adminH.Stats)
 			r.Get("/audit", adminH.Audit)
+			r.Get("/categories", adminH.ListCategories)
+
+			// Current admin + own two-factor — any authenticated admin.
+			r.Get("/me", adminH.Me)
+			r.Post("/2fa/setup", adminH.Setup2FA)
+			r.Post("/2fa/enable", adminH.Enable2FA)
+			r.Post("/2fa/disable", adminH.Disable2FA)
+
+			// Moderation — superadmin + moderator.
+			r.Group(func(r chi.Router) {
+				r.Use(httpx.RequireRole("moderator"))
+				r.Get("/users", adminH.ListUsers)
+				r.Get("/users/{id}", adminH.GetUser)
+				r.Post("/users/{id}/block", adminH.BlockUser)
+				r.Delete("/users/{id}", adminH.DeleteUser)
+				r.Post("/users/{id}/verify", adminH.VerifyUser)
+				r.Post("/users/{id}/notify", adminH.NotifyUser)
+				r.Get("/elons", adminH.ListElons)
+				r.Delete("/elons/{id}", adminH.DeleteElon)
+				r.Patch("/elons/{id}/status", adminH.SetElonStatus)
+				r.Get("/reports", adminH.ListReports)
+				r.Patch("/reports/{id}/resolve", repH.Resolve)
+				r.Get("/reviews", adminH.ListReviews)
+				r.Delete("/reviews/{id}", adminH.DeleteReview)
+				r.Get("/applications", adminH.ListApplications)
+				r.Get("/export/users.csv", adminH.ExportUsers)
+				r.Get("/export/elons.csv", adminH.ExportElons)
+				r.Get("/export/applications.csv", adminH.ExportApplications)
+			})
+
+			// Support desk — superadmin + moderator + support.
+			r.Group(func(r chi.Router) {
+				r.Use(httpx.RequireRole("moderator", "support"))
+				r.Get("/feedback", fbH.ListAdmin)
+				r.Patch("/feedback/{id}/resolve", fbH.Resolve)
+			})
+
+			// Superadmin only — category management, staff accounts, broadcast.
+			// RequireRole() with no args admits only superadmin (always-allowed).
+			r.Group(func(r chi.Router) {
+				r.Use(httpx.RequireRole())
+				r.Patch("/categories/{id}/active", adminH.SetCategoryActive)
+				r.Post("/categories", adminH.CreateCategory)
+				r.Put("/categories/{id}", adminH.UpdateCategory)
+				r.Delete("/categories/{id}", adminH.DeleteCategory)
+				r.Get("/admins", adminH.ListAdmins)
+				r.Post("/admins", adminH.CreateAdmin)
+				r.Patch("/admins/{id}", adminH.UpdateAdmin)
+				r.Delete("/admins/{id}", adminH.DeleteAdmin)
+				r.Post("/broadcast", adminH.Broadcast)
+				r.Get("/broadcasts", adminH.ListBroadcasts)
+			})
 		})
 	})
 

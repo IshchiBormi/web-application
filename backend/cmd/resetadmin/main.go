@@ -71,7 +71,11 @@ func main() {
 				"passwordHash": string(hash),
 				"role":         "superadmin",
 				"isActive":     true,
+				// 2FA'ni ham tiklaymiz: yagona superadmin autentifikator qurilmasini
+				// yo'qotib qo'lda kirolmay qolsa, shu buyruq lockout'dan chiqaradi.
+				"totpEnabled": false,
 			},
+			"$unset":       bson.M{"totpSecret": ""},
 			"$setOnInsert": bson.M{"createdAt": time.Now()},
 		},
 		options.Update().SetUpsert(true),

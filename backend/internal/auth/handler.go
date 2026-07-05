@@ -136,7 +136,6 @@ func (h *Handler) upsertUser(ctx context.Context, phone string, tgID int64) (*mo
 			"completedJobsCount":  0,
 			"langPref":            "latin",
 			"themePref":           "light",
-			"isPremium":           false,
 			"isBlocked":           false,
 			"isDeleted":           false,
 			"onboardingCompleted": false,

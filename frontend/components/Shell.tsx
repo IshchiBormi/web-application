@@ -102,7 +102,7 @@ export function Shell({ title, search, children }: { title: string; search?: Rea
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold truncate heading">{me.firstName} {me.lastName}</div>
             <div className="text-xs muted">
-              {me.isPremium ? <T>Premium foydalanuvchi</T> : <T>Foydalanuvchi</T>}
+              <T>Foydalanuvchi</T>
             </div>
           </div>
         </Link>

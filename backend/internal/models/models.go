@@ -27,7 +27,6 @@ type User struct {
 	EmployerReviewsCount int               `bson:"employerReviewsCount" json:"employerReviewsCount"`
 	CompletedJobsCount  int                `bson:"completedJobsCount" json:"completedJobsCount"`
 	IsPhoneVerified     bool               `bson:"isPhoneVerified" json:"isPhoneVerified"`
-	IsPremium           bool               `bson:"isPremium" json:"isPremium"`
 	IsBlocked           bool               `bson:"isBlocked" json:"isBlocked"`
 	IsDeleted           bool               `bson:"isDeleted" json:"isDeleted"`
 	LangPref            string             `bson:"langPref" json:"langPref"`
@@ -224,7 +223,25 @@ type Admin struct {
 	PasswordHash string             `bson:"passwordHash" json:"-"`
 	Role         string             `bson:"role" json:"role"`
 	IsActive     bool               `bson:"isActive" json:"isActive"`
-	CreatedAt    time.Time          `bson:"createdAt" json:"createdAt"`
+	// Two-factor (TOTP). TOTPSecret is never serialized to clients. TOTPEnabled
+	// is true only after the admin verifies a code during enrollment.
+	TOTPSecret  string    `bson:"totpSecret,omitempty" json:"-"`
+	TOTPEnabled bool      `bson:"totpEnabled" json:"totpEnabled"`
+	CreatedAt   time.Time `bson:"createdAt" json:"createdAt"`
+}
+
+// Broadcast — admin ommaviy bildirishnomasi tarixi. Yuborish fon jarayonida
+// bajariladi; SentCount va Status yuborish tugagach yangilanadi.
+type Broadcast struct {
+	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Title      string             `bson:"title" json:"title"`
+	Body       string             `bson:"body" json:"body"`
+	Region     string             `bson:"region,omitempty" json:"region"`
+	ActiveOnly bool               `bson:"activeOnly" json:"activeOnly"`
+	SentCount  int                `bson:"sentCount" json:"sentCount"`
+	Status     string             `bson:"status" json:"status"` // sending|done
+	CreatedBy  primitive.ObjectID `bson:"createdBy,omitempty" json:"createdBy"`
+	CreatedAt  time.Time          `bson:"createdAt" json:"createdAt"`
 }
 
 // AdminAuditLog

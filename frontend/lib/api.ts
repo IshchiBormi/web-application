@@ -36,6 +36,34 @@ export function getAdminToken(): string | null {
   return localStorage.getItem(ADMIN_KEY);
 }
 
+// downloadAdminCsv triggers a browser download of an admin CSV export. The admin
+// JWT is passed via ?token= (a plain <a> download can't send the Authorization
+// header); the backend's AdminAuth accepts it there.
+export function downloadAdminCsv(path: string, params?: URLSearchParams) {
+  if (typeof document === "undefined") return;
+  const qs = new URLSearchParams(params ? params.toString() : "");
+  qs.set("token", getAdminToken() || "");
+  const a = document.createElement("a");
+  a.href = `${API_BASE}${path}?${qs}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// getAdminRole decodes the role claim from the stored admin JWT so the UI can
+// hide sections a role can't use (RBAC is still enforced server-side).
+export function getAdminRole(): string | null {
+  const t = getAdminToken();
+  if (!t) return null;
+  try {
+    const part = t.split(".")[1];
+    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(json).role || null;
+  } catch {
+    return null;
+  }
+}
+
 export interface APIError {
   code: string;
   message: string;
@@ -78,6 +106,8 @@ export const api = {
     request<T>(p, { ...(opts || {}), method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
   patch: <T>(p: string, body?: any, opts?: any) =>
     request<T>(p, { ...(opts || {}), method: "PATCH", body: body !== undefined ? JSON.stringify(body) : undefined }),
+  put: <T>(p: string, body?: any, opts?: any) =>
+    request<T>(p, { ...(opts || {}), method: "PUT", body: body !== undefined ? JSON.stringify(body) : undefined }),
   delete: <T>(p: string, opts?: any) => request<T>(p, { ...(opts || {}), method: "DELETE" }),
 };
 
@@ -103,7 +133,6 @@ export interface User {
   employerReviewsCount?: number;
   completedJobsCount: number;
   isPhoneVerified: boolean;
-  isPremium: boolean;
   isBlocked: boolean;
   langPref?: "latin" | "cyrillic";
   themePref?: "light" | "dark";
@@ -114,8 +143,10 @@ export interface Category {
   name: string;
   slug: string;
   icon?: string;
+  isSystemDefault?: boolean;
   isActive: boolean;
   usageCount: number;
+  createdAt?: string;
 }
 export interface Elon {
   id: ID;
@@ -138,7 +169,7 @@ export interface Elon {
   workTimeFrom?: string;
   workTimeTo?: string;
   contactPhone?: string;
-  status: "draft" | "recruiting" | "filled" | "in_progress" | "completed" | "cancelled";
+  status: "draft" | "recruiting" | "filled" | "in_progress" | "completed" | "cancelled" | "hidden";
   acceptedCount: number;
   publishedAt?: string;
   createdAt: string;
@@ -200,4 +231,68 @@ export interface Review {
   rating: number;
   comment?: string;
   createdAt: string;
+}
+
+// ----- admin types -----
+export type AdminRole = "superadmin" | "moderator" | "support";
+
+export interface Admin {
+  id: ID;
+  username: string;
+  role: AdminRole;
+  isActive: boolean;
+  totpEnabled: boolean;
+  createdAt: string;
+}
+
+export interface AdminAudit {
+  id: ID;
+  adminId: ID;
+  action: string;
+  target?: string;
+  detail?: string;
+  createdAt: string;
+}
+
+export interface Broadcast {
+  id: ID;
+  title: string;
+  body: string;
+  region?: string;
+  activeOnly: boolean;
+  sentCount: number;
+  status: "sending" | "done";
+  createdAt: string;
+}
+
+// Paged is the shape every admin list endpoint returns.
+export interface Paged<T> {
+  items: T[];
+  page: number;
+  limit: number;
+  total: number;
+}
+
+export interface DashboardStats {
+  users: number;
+  activeUsers: number;
+  blockedUsers: number;
+  todayUsers: number;
+  elons: number;
+  recruitingElons: number;
+  filledElons: number;
+  todayElons: number;
+  completed: number;
+  openReports: number;
+  openFeedback: number;
+}
+
+export interface DayPoint { date: string; count: number; }
+export interface NameCount { name: string; count: number; }
+export interface AdminStats {
+  userGrowth: DayPoint[];
+  elonGrowth: DayPoint[];
+  funnel: Record<string, number>;
+  topCategories: NameCount[];
+  regions: NameCount[];
 }

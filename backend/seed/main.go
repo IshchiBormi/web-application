@@ -149,7 +149,6 @@ func main() {
 			ReviewsCount:        2 + rand.Intn(15),
 			CompletedJobsCount:  1 + rand.Intn(20),
 			IsPhoneVerified:     true,
-			IsPremium:           i == 0,
 			OnboardingCompleted: true,
 			LangPref:            "latin",
 			ThemePref:           "light",
