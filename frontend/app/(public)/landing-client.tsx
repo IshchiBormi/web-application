@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Star, ShieldCheck, CheckCircle2, Clock, MessageSquare, ShieldAlert,
+  ShieldCheck, CheckCircle2, Clock, MessageSquare, ShieldAlert,
   MapPin, User as UserIcon, Sparkles, Truck, Hammer,
   Phone, Send, ArrowRight, Search, ArrowUpRight,
   Mail, Instagram, Youtube, LifeBuoy,
@@ -92,10 +92,9 @@ export default function Landing() {
             </div>
 
             {/* Stats row */}
-            <div className="mt-12 grid grid-cols-3 max-w-2xl mx-auto gap-6 sm:gap-8">
+            <div className="mt-12 grid grid-cols-2 max-w-md mx-auto gap-6 sm:gap-8">
               <Stat icon={<CheckCircle2 size={16} className="text-success" />} value="1000+" label="bajarilgan ish" />
               <Stat icon={<ShieldCheck size={16} className="text-tg-blue" />}    value="500+"  label="tasdiqlangan ishchi" />
-              <Stat icon={<Star size={16} className="text-accent-amber" fill="currentColor" />} value="4.8" label="o'rtacha reyting" />
             </div>
           </div>
         </section>
@@ -114,9 +113,6 @@ export default function Landing() {
                       <div className="font-semibold heading line-clamp-1"><T>{e.title}</T></div>
                       <div className="text-xs muted mt-0.5 flex items-center gap-1">
                         <span className="truncate">{e.ownerName || e.owner}</span>
-                        <span>·</span>
-                        <Star size={11} className="text-accent-amber" fill="currentColor" />
-                        {(e.ownerRating ?? e.rating ?? 4.8).toFixed(1)}
                       </div>
                     </div>
                   </div>
@@ -151,7 +147,7 @@ export default function Landing() {
               <Pain icon={<MessageSquare size={20} />} title="Telegram guruhlar"
                     body="Tartibsiz xabarlar orasida ishonchli mutaxassisni topish qiyin." />
               <Pain icon={<ShieldAlert size={20} />}   title="Xavfsizlik yo'q"
-                    body="Reyting ham, baho ham ko'rinmaydi — har doim xavf-xatar." />
+                    body="Kim bilan ishlashingiz haqida ishonchli ma'lumot bo'lmaydi — har doim xavf-xatar." />
             </div>
           </div>
         </section>
@@ -163,15 +159,15 @@ export default function Landing() {
             <div className="mt-8 grid md:grid-cols-2 gap-5">
               <HowCard title="Ish beruvchilar uchun" steps={[
                 ["E'lon yarating", "Sarlavha, narx va ish joyini ko'rsating."],
-                ["Arizalarni ko'ring", "Ishchilar reytingi va ma'lumotlarini taqqoslang."],
+                ["Arizalarni ko'ring", "Ishchilar ma'lumotlarini taqqoslang."],
                 ["Tasdiqlang", "Maqbul kishini qabul qiling va to'g'ridan bog'laning."],
-                ["Baho qoldiring", "Ish yakunlangach o'zaro reyting beriladi."],
+                ["Ishni yakunlang", "Ish tugagach to'g'ridan-to'g'ri hisob-kitob qiling."],
               ]} />
               <HowCard title="Ishchilar uchun" steps={[
                 ["Ro'yxatdan o'ting", "Telegram orqali bir necha daqiqada."],
                 ["Profilni to'ldiring", "Tajriba va xizmatlaringizni ulashing."],
                 ["Ariza topshiring", "Sizga mos e'lonlarni topib arizalang."],
-                ["Reytingni oshiring", "Yaxshi ish — ko'proq mijoz."],
+                ["Ko'proq ish oling", "Sifatli ish — ko'proq mijoz."],
               ]} />
             </div>
           </div>
@@ -192,12 +188,12 @@ export default function Landing() {
         {/* ── Testimonials ────────────────────────── */}
         <section className="px-4 py-16">
           <div className="mx-auto max-w-6xl">
-            <SectionHeader eyebrow="Sharhlar" title="Foydalanuvchilar nima deydi" />
+            <SectionHeader eyebrow="Fikrlar" title="Foydalanuvchilar nima deydi" />
             <div className="mt-8 grid md:grid-cols-2 gap-4">
               <Quote name="Alisher R." location="Toshkent"
                 text="Juda qulay xizmat. Uyimizni ko'chirish uchun bir soat ichida ishonchli yigitlarni topdik. Narxlar ham kelishilgan." />
               <Quote name="Dilnoza K." location="Samarqand"
-                text="Santexnik kerak edi. Saytdan izlab, ustaning reytingini ko'rib chaqirdim. Ishni sifatli bajardi, rahmat!" />
+                text="Santexnik kerak edi. Saytdan tez topdim va to'g'ridan-to'g'ri bog'landim. Ishni sifatli bajardi, rahmat!" />
             </div>
           </div>
         </section>
@@ -335,9 +331,6 @@ function Cat({ icon, label }: { icon: React.ReactNode; label: string }) {
 function Quote({ name, location, text }: { name: string; location: string; text: string }) {
   return (
     <div className="card p-6 animate-fade-in">
-      <div className="flex gap-1 text-accent-amber mb-3">
-        {Array.from({ length: 5 }).map((_, i) => <Star key={i} size={14} fill="currentColor" />)}
-      </div>
       <p className="text-sm leading-relaxed">"<T>{text}</T>"</p>
       <div className="mt-4 flex items-center gap-3 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
         <Avatar name={name} size="sm" />
@@ -351,7 +344,7 @@ function Quote({ name, location, text }: { name: string; location: string; text:
 }
 
 const SAMPLES = [
-  { title: "Mebel tashish",      owner: "Alisher Rustamov",   location: "Toshkent, Sergeli",   price: 200000, rating: 4.9 },
-  { title: "Hovli tozalash",     owner: "Malika Ahmedova",    location: "Samarqand",            price: 150000, rating: 4.7 },
-  { title: "Santexnika xizmati", owner: "Jasur Bekmirzayev",  location: "Buxoro, G'ijduvon",   price: 250000, rating: 5.0 },
+  { title: "Mebel tashish",      owner: "Alisher Rustamov",   location: "Toshkent, Sergeli",   price: 200000 },
+  { title: "Hovli tozalash",     owner: "Malika Ahmedova",    location: "Samarqand",            price: 150000 },
+  { title: "Santexnika xizmati", owner: "Jasur Bekmirzayev",  location: "Buxoro, G'ijduvon",   price: 250000 },
 ];

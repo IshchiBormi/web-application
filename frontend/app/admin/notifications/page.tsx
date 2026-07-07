@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { Megaphone, Send, Clock, Check } from "lucide-react";
 import { api, Broadcast, Paged } from "@/lib/api";
 import { Pagination } from "@/components/Pagination";
 
@@ -49,58 +50,110 @@ export default function AdminBroadcast() {
 
   const items = hist?.items ?? [];
   const pages = Math.max(1, Math.ceil((hist?.total ?? 0) / limit));
-  const statusLabel = (b: Broadcast) =>
-    b.status === "scheduled" ? <span className="text-brand-navy">rejalashtirilgan</span>
-    : b.status === "sending" ? <span className="text-brand-navy">yuborilmoqda…</span>
-    : "yuborildi";
+
+  function statusBadge(b: Broadcast) {
+    const map: Record<string, { label: string; color: string }> = {
+      scheduled: { label: "rejalashtirilgan", color: "var(--brand, #6366f1)" },
+      sending: { label: "yuborilmoqda…", color: "var(--warning, #d97706)" },
+    };
+    const s = map[b.status] ?? { label: "yuborildi", color: "var(--success, #16a34a)" };
+    return (
+      <span className="inline-flex justify-center items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border whitespace-nowrap"
+        style={{ color: s.color, borderColor: s.color }}>
+        <span className="h-1.5 w-1.5 rounded-full" style={{ background: s.color }} />{s.label}
+      </span>
+    );
+  }
 
   return (
-    <div className="grid gap-4">
-      <div className="card p-6 max-w-xl grid gap-3">
-        <h1 className="font-semibold text-lg">Tarqatma yuborish</h1>
-        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Sarlavha" />
-        <textarea className="input min-h-[100px]" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Matn" />
-        <div className="grid sm:grid-cols-2 gap-2">
-          <label className="text-sm">Segment: viloyat (ixtiyoriy)
+    <div className="flex flex-col gap-4">
+      {/* Sarlavha — tepada ixcham navbar sifatida */}
+      <div className="card flex items-center gap-3 px-4 py-3">
+        <div className="shrink-0 grid h-9 w-9 place-items-center rounded-lg" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
+          <Megaphone size={18} />
+        </div>
+        <div>
+          <h1 className="text-lg font-bold heading leading-tight">Tarqatma</h1>
+          <p className="text-xs text-[color:var(--text-muted)]">Foydalanuvchilarga ommaviy xabar yuborish</p>
+        </div>
+      </div>
+
+      {/* Yuborish formasi */}
+      <div className="card p-5 sm:p-6 flex flex-col gap-4">
+        <div className="font-semibold heading">Yangi tarqatma</div>
+
+        <label className="text-sm font-medium heading">Sarlavha
+          <input className="input mt-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Masalan: Yangilik!" />
+        </label>
+
+        <label className="text-sm font-medium heading">Matn
+          <textarea className="input mt-1 min-h-[110px]" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Xabar matni…" />
+        </label>
+
+        <div className="grid sm:grid-cols-2 gap-3 items-start">
+          <label className="text-sm font-medium heading">Segment: viloyat <span className="text-[color:var(--text-muted)] font-normal">(ixtiyoriy)</span>
             <input className="input mt-1" value={region} onChange={(e) => setRegion(e.target.value)} placeholder="Barchasi" />
           </label>
-          <label className="text-sm flex items-center gap-2 sm:mt-6">
-            <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Faqat faol (bloklanmagan)
+          <label className="flex items-center gap-2.5 text-sm rounded-lg border px-3 py-2.5 cursor-pointer sm:mt-6" style={{ borderColor: "var(--border)" }}>
+            <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} />
+            <span>Faqat faol <span className="text-[color:var(--text-muted)]">(bloklanmagan)</span></span>
           </label>
         </div>
-        <label className="text-sm">Rejalashtirish (ixtiyoriy — bo'sh bo'lsa hozir yuboriladi)
-          <input type="datetime-local" className="input mt-1" value={schedule} onChange={(e) => setSchedule(e.target.value)} />
+
+        <label className="text-sm font-medium heading flex items-center gap-1.5">
+          <Clock size={14} /> Rejalashtirish <span className="text-[color:var(--text-muted)] font-normal">(bo'sh bo'lsa — hozir yuboriladi)</span>
+          <input type="datetime-local" className="input mt-1 w-full block basis-full" value={schedule} onChange={(e) => setSchedule(e.target.value)} />
         </label>
-        <button onClick={send} className="btn-primary" disabled={!title.trim() || sending}>
+
+        <button onClick={send} className="btn-primary w-full gap-2" disabled={!title.trim() || sending}>
+          {schedule ? <Clock size={16} /> : <Send size={16} />}
           {sending ? "Yuborilmoqda…" : schedule ? "Rejalashtirish" : "Yuborish"}
         </button>
-        {msg && <div className="text-sm text-success">{msg}</div>}
+
+        {msg && (
+          <div className="flex items-center gap-2 text-sm rounded-lg px-3 py-2" style={{ background: "color-mix(in srgb, var(--success, #16a34a) 12%, transparent)", color: "var(--success, #16a34a)" }}>
+            <Check size={16} /> {msg}
+          </div>
+        )}
         <p className="text-xs text-[color:var(--text-muted)]">Yuborish fon jarayonida bajariladi — ko'p foydalanuvchi bo'lsa ham sahifa kutib qolmaydi.</p>
       </div>
 
-      <div className="card p-4 grid gap-3">
-        <div className="font-semibold text-sm">Tarqatmalar tarixi</div>
-        <div className="-mx-4 px-4 overflow-x-auto scroll-y-auto">
-          <table className="w-full min-w-[820px] text-sm">
-            <thead><tr className="text-left text-[color:var(--text-muted)]"><th className="py-2">Sarlavha</th><th>Segment</th><th>Yuborilgan</th><th>Holat</th><th>Vaqt</th><th></th></tr></thead>
+      {/* Tarixi */}
+      <div className="card p-0 overflow-hidden">
+        <div className="px-4 py-3 border-b font-semibold heading text-sm" style={{ borderColor: "var(--border)" }}>Tarqatmalar tarixi</div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[820px] text-sm table-fixed">
+            <colgroup>
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "24%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "18%" }} />
+              <col style={{ width: "10%" }} />
+            </colgroup>
+            <thead>
+              <tr className="text-left text-[color:var(--text-muted)] border-b" style={{ borderColor: "var(--border)" }}>
+                <th className="py-3 px-4">Sarlavha</th><th className="px-4">Segment</th><th className="px-4">Yuborilgan</th><th className="px-4">Holat</th><th className="px-4">Vaqt</th><th className="px-4 text-right">Amal</th>
+              </tr>
+            </thead>
             <tbody>
               {items.map((b) => (
-                <tr key={b.id} className="border-t" style={{ borderColor: "var(--border)" }}>
-                  <td className="py-2">{b.title}</td>
-                  <td className="text-[color:var(--text-muted)]">{[b.region || "barcha viloyat", b.activeOnly ? "faol" : "hammasi"].join(" · ")}</td>
-                  <td>{b.sentCount}</td>
-                  <td>{statusLabel(b)}</td>
-                  <td className="whitespace-nowrap">{new Date(b.scheduledAt || b.createdAt).toLocaleString("uz-UZ")}</td>
-                  <td className="text-right">
-                    {b.status === "scheduled" && <button onClick={() => cancel(b.id)} className="btn-secondary btn-sm">Bekor qilish</button>}
+                <tr key={b.id} className="border-b last:border-0" style={{ borderColor: "var(--border)" }}>
+                  <td className="py-3 px-4 font-medium truncate">{b.title}</td>
+                  <td className="px-4 text-[color:var(--text-muted)] truncate">{[b.region || "barcha viloyat", b.activeOnly ? "faol" : "hammasi"].join(" · ")}</td>
+                  <td className="px-4">{b.sentCount}</td>
+                  <td className="px-4">{statusBadge(b)}</td>
+                  <td className="px-4 whitespace-nowrap">{new Date(b.scheduledAt || b.createdAt).toLocaleString("uz-UZ")}</td>
+                  <td className="px-4 text-right">
+                    {b.status === "scheduled" && <button onClick={() => cancel(b.id)} className="btn-secondary btn-sm">Bekor</button>}
                   </td>
                 </tr>
               ))}
-              {!items.length && <tr><td colSpan={6} className="py-6 text-center text-[color:var(--text-muted)]">Hali tarqatma yo'q</td></tr>}
+              {!items.length && <tr><td colSpan={6} className="py-8 text-center text-[color:var(--text-muted)]">Hali tarqatma yo'q</td></tr>}
             </tbody>
           </table>
         </div>
-        <Pagination page={page} pages={pages} onPage={setPage} />
+        <div className="px-4 py-3"><Pagination page={page} pages={pages} onPage={setPage} /></div>
       </div>
     </div>
   );

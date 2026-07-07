@@ -38,39 +38,82 @@ export default function AdminCategories() {
       await api.delete(`/api/admin/categories/${delCat.id}`, { auth: "admin" } as any);
       setDelCat(null);
       load();
-    } catch (e: any) { setErr(e?.message || "Xatolik"); setDelCat(null); }
+    } catch (e: any) { setErr(e?.message || "Xatolik"); }
+  }
+  async function deactivateFromModal() {
+    if (!delCat) return;
+    setErr("");
+    try {
+      await api.patch(`/api/admin/categories/${delCat.id}/active`, { isActive: false }, { auth: "admin" } as any);
+      setDelCat(null);
+      load();
+    } catch (e: any) { setErr(e?.message || "Xatolik"); }
   }
 
   return (
-    <div className="card p-4 grid gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="font-semibold text-sm">Turkumlar ({cats.length})</div>
+    <div className="flex flex-col gap-4">
+      {/* Sarlavha — tepada ixcham navbar sifatida */}
+      <div className="card flex items-center justify-between gap-2 px-4 py-3">
+        <div>
+          <h1 className="text-lg font-bold heading leading-tight">Turkumlar</h1>
+          <p className="text-xs text-[color:var(--text-muted)]">Jami {cats.length} ta turkum</p>
+        </div>
         {isSuper && <button onClick={() => { setErr(""); setEdit({ ...empty }); }} className="btn-primary btn-sm">+ Yangi turkum</button>}
       </div>
-      {err && <div className="text-danger text-sm">{err}</div>}
+      {err && !edit && !delCat && <div className="text-danger text-sm">{err}</div>}
 
-      <div className="-mx-4 px-4 overflow-x-auto scroll-y-auto">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead><tr className="text-left text-[color:var(--text-muted)]"><th className="py-2">Nomi</th><th>Slug</th><th>Foydalanish</th><th>Tur</th><th>Holat</th><th></th></tr></thead>
-          <tbody>
-            {cats.map((c) => (
-              <tr key={c.id} className="border-t" style={{ borderColor: "var(--border)" }}>
-                <td className="py-2">{c.icon} {c.name}</td>
-                <td>{c.slug}</td>
-                <td>{c.usageCount}</td>
-                <td>{c.isSystemDefault ? "tizim" : "admin"}</td>
-                <td>{c.isActive ? "Faol" : "O'chirilgan"}</td>
-                <td>
-                  <div className="flex flex-wrap gap-2 justify-end">
-                    {isSuper && <button onClick={() => { setErr(""); setEdit({ id: c.id, name: c.name, slug: c.slug, icon: c.icon || "", isActive: c.isActive }); }} className="btn-secondary btn-sm">Tahrir</button>}
-                    {isSuper && <button onClick={() => toggle(c)} className="btn-secondary btn-sm">{c.isActive ? "O'chirish" : "Yoqish"}</button>}
-                    {isSuper && !c.isSystemDefault && <button onClick={() => { setErr(""); setDelCat(c); }} className="btn-danger btn-sm">Delete</button>}
-                  </div>
-                </td>
+      {/* Turkumlar qatori */}
+      <div className="card p-0 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[680px] text-sm table-fixed">
+            <colgroup>
+              <col style={{ width: "26%" }} />
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "18%" }} />
+            </colgroup>
+            <thead>
+              <tr className="text-left text-[color:var(--text-muted)] border-b" style={{ borderColor: "var(--border)" }}>
+                <th className="py-3 px-4">Nomi</th><th className="px-4">Slug</th><th className="px-4">Foydalanish</th><th className="px-4">Tur</th><th className="px-4">Holat</th><th className="px-4 text-right">Amallar</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {cats.map((c) => (
+                <tr key={c.id} className="border-b last:border-0" style={{ borderColor: "var(--border)" }}>
+                  <td className="py-3 px-4 truncate">{c.icon} {c.name}</td>
+                  <td className="px-4 truncate">{c.slug}</td>
+                  <td className="px-4">{c.usageCount}</td>
+                  <td className="px-4">{c.isSystemDefault ? "tizim" : "admin"}</td>
+                  <td className="px-4">
+                    {isSuper ? (
+                      <button
+                        onClick={() => toggle(c)}
+                        className="inline-flex justify-center w-[92px] text-xs font-medium px-2 py-0.5 rounded-full border"
+                        style={c.isActive
+                          ? { color: "var(--success, #16a34a)", borderColor: "var(--success, #16a34a)" }
+                          : { color: "var(--text-muted)", borderColor: "var(--border)" }}
+                        title="Holatni almashtirish"
+                      >{c.isActive ? "Faol" : "O'chirilgan"}</button>
+                    ) : (
+                      <span className="inline-flex justify-center w-[92px]">{c.isActive ? "Faol" : "O'chirilgan"}</span>
+                    )}
+                  </td>
+                  <td className="px-4">
+                    <div className="flex gap-2 justify-end">
+                      {isSuper && <button onClick={() => { setErr(""); setEdit({ id: c.id, name: c.name, slug: c.slug, icon: c.icon || "", isActive: c.isActive }); }} className="btn-secondary btn-sm">Tahrir</button>}
+                      {isSuper && <button onClick={() => { setErr(""); setDelCat(c); }} className="btn-danger btn-sm">O'chirish</button>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {cats.length === 0 && (
+                <tr><td colSpan={6} className="py-8 text-center text-[color:var(--text-muted)]">Turkumlar yo'q</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
       {!isSuper && <div className="text-xs text-[color:var(--text-muted)]">Turkumlarni faqat superadmin tahrirlashi mumkin.</div>}
 
@@ -101,13 +144,25 @@ export default function AdminCategories() {
       </Modal>
 
       {/* O'chirish */}
-      <Modal open={!!delCat} onClose={() => setDelCat(null)} title="Turkumni o'chirasizmi?" footer={
-        <>
-          <button onClick={() => setDelCat(null)} className="btn-secondary">Yo'q</button>
-          <button onClick={del} className="btn-danger">Ha, o'chirish</button>
-        </>
+      <Modal open={!!delCat} onClose={() => { setDelCat(null); setErr(""); }} title="Turkumni o'chirasizmi?" footer={
+        delCat?.isSystemDefault ? (
+          <>
+            <button onClick={() => { setDelCat(null); setErr(""); }} className="btn-secondary">Yopish</button>
+            {delCat?.isActive && <button onClick={deactivateFromModal} className="btn-danger">Nofaol qilish</button>}
+          </>
+        ) : (
+          <>
+            <button onClick={() => { setDelCat(null); setErr(""); }} className="btn-secondary">Yo'q</button>
+            <button onClick={del} className="btn-danger">Ha, o'chirish</button>
+          </>
+        )
       }>
-        <p className="text-sm muted">“{delCat?.name}” o'chiriladi. E'lonlarda ishlatilgan bo'lsa, o'chirish rad etiladi.</p>
+        {delCat?.isSystemDefault ? (
+          <p className="text-sm muted">“{delCat?.name}” — tizim turkumi va butunlay o'chirilmaydi. Uni faqat <b>nofaol</b> qilish mumkin (feeddan yashiriladi).</p>
+        ) : (
+          <p className="text-sm muted">“{delCat?.name}” o'chiriladi. E'lonlarda ishlatilgan bo'lsa, o'chirish rad etiladi.</p>
+        )}
+        {err && <div className="mt-2 text-danger text-sm">{err}</div>}
       </Modal>
     </div>
   );

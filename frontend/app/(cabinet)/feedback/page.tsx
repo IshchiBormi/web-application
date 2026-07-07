@@ -28,7 +28,7 @@ export default function FeedbackPage() {
           <div>
             <h2 className="font-semibold heading text-lg"><T>Fikringizni Telegram bot orqali yuboring</T></h2>
             <p className="text-sm muted mt-1">
-              <T>Taklif va shikoyatlar endi maxsus Telegram bot orqali qabul qilinadi. Shu orqali xabaringizga tezroq va bevosita javob beramiz.</T>
+              <T>Taklif va shikoyatlar maxsus Telegram bot orqali qabul qilinadi. Shu orqali xabaringizga tezroq va bevosita javob beramiz.</T>
             </p>
           </div>
         </div>
@@ -54,7 +54,7 @@ export default function FeedbackPage() {
         </ol>
 
         <a href={BOT_URL} target="_blank" rel="noreferrer" className="btn-primary gap-2 justify-center py-3 text-base">
-          <Send size={18} /><T>Telegram botni ochish</T><ExternalLink size={15} />
+          <Send size={18} /><T>Telegramda o'tish</T><ExternalLink size={15} />
         </a>
         <p className="text-xs muted text-center">{BOT_LABEL}</p>
       </div>

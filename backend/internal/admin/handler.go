@@ -14,7 +14,6 @@ import (
 	"github.com/ishchibormi/backend/config"
 	"github.com/ishchibormi/backend/internal/models"
 	"github.com/ishchibormi/backend/internal/notification"
-	"github.com/ishchibormi/backend/internal/review"
 	"github.com/ishchibormi/backend/internal/upload"
 	"github.com/ishchibormi/backend/pkg/httpx"
 	"github.com/ishchibormi/backend/pkg/storage"
@@ -36,7 +35,6 @@ type Handler struct {
 	Users    *mongo.Collection
 	Elons    *mongo.Collection
 	Cats     *mongo.Collection
-	Reviews    *mongo.Collection
 	Reports    *mongo.Collection
 	Feedback   *mongo.Collection
 	AuditCol   *mongo.Collection
@@ -53,7 +51,6 @@ func NewHandler(cfg config.Config, db *mongo.Database, n *notification.Service, 
 		Users:    db.Collection("users"),
 		Elons:    db.Collection("elons"),
 		Cats:     db.Collection("categories"),
-		Reviews:    db.Collection("reviews"),
 		Reports:    db.Collection("reports"),
 		Feedback:   db.Collection("feedback"),
 		AuditCol:   db.Collection("admin_audit"),
@@ -126,9 +123,6 @@ func decodeElons(ctx context.Context, col *mongo.Collection, f bson.M, n int64) 
 }
 func decodeApps(ctx context.Context, col *mongo.Collection, f bson.M, n int64) []models.Application {
 	return find[models.Application](ctx, col, f, "appliedAt", n)
-}
-func decodeReviews(ctx context.Context, col *mongo.Collection, f bson.M, n int64) []models.Review {
-	return find[models.Review](ctx, col, f, "createdAt", n)
 }
 func decodeReports(ctx context.Context, col *mongo.Collection, f bson.M, n int64) []models.Report {
 	return find[models.Report](ctx, col, f, "createdAt", n)
@@ -448,10 +442,9 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 	}
 	elons := decodeElons(ctx, h.Elons, bson.M{"ownerId": id}, 100)
 	apps := decodeApps(ctx, h.Apps, bson.M{"workerId": id}, 100)
-	reviews := decodeReviews(ctx, h.Reviews, bson.M{"toUserId": id}, 100)
 	reports := decodeReports(ctx, h.Reports, bson.M{"targetType": "user", "targetId": id}, 100)
 	httpx.JSON(w, 200, map[string]any{
-		"user": u, "elons": elons, "applications": apps, "reviews": reviews, "reports": reports,
+		"user": u, "elons": elons, "applications": apps, "reports": reports,
 	})
 }
 
@@ -776,57 +769,6 @@ func (h *Handler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, 200, map[string]bool{"ok": true})
 }
 
-// ListReviews: paginated review moderation feed. Optional ?toUserId filter.
-func (h *Handler) ListReviews(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	page, limit, skip := pageParams(r)
-	filter := bson.M{}
-	if v := strings.TrimSpace(r.URL.Query().Get("toUserId")); v != "" {
-		if oid, err := primitive.ObjectIDFromHex(v); err == nil {
-			filter["toUserId"] = oid
-		}
-	}
-	cur, err := h.Reviews.Find(ctx, filter,
-		options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}).SetSkip(skip).SetLimit(int64(limit)))
-	if err != nil {
-		httpx.Err(w, err)
-		return
-	}
-	defer cur.Close(ctx)
-	out := []models.Review{}
-	for cur.Next(ctx) {
-		var rv models.Review
-		if err := cur.Decode(&rv); err == nil {
-			out = append(out, rv)
-		}
-	}
-	total, _ := h.Reviews.CountDocuments(ctx, filter)
-	paged(w, out, page, limit, total)
-}
-
-// DeleteReview removes an abusive/fake review and recomputes the affected user's
-// aggregate rating so their profile stays consistent.
-func (h *Handler) DeleteReview(w http.ResponseWriter, r *http.Request) {
-	id, err := primitive.ObjectIDFromHex(chi.URLParam(r, "id"))
-	if err != nil {
-		httpx.Err(w, httpx.NewError(400, "bad_id", "bad id"))
-		return
-	}
-	var rv models.Review
-	if err := h.Reviews.FindOne(r.Context(), bson.M{"_id": id}).Decode(&rv); err != nil {
-		httpx.Err(w, httpx.NewError(404, "not_found", "review not found"))
-		return
-	}
-	if _, err := h.Reviews.DeleteOne(r.Context(), bson.M{"_id": id}); err != nil {
-		httpx.Err(w, err)
-		return
-	}
-	// Keep the target user's rating/counters accurate after removal.
-	_ = review.Recompute(r.Context(), h.Reviews, h.Users, rv.ToUserID)
-	h.audit(r, "review_delete", id.Hex(), "")
-	httpx.JSON(w, 200, map[string]bool{"ok": true})
-}
-
 // ---- Two-factor (TOTP) — every admin manages their own ----
 
 // currentAdmin loads the admin making the request (from the JWT).
@@ -851,6 +793,17 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, 200, a)
+}
+
+// Logout writes an audit trail entry for the admin leaving the panel. The token
+// itself is stateless (cleared client-side), so this endpoint's only job is the
+// audit record.
+func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	aid, _ := primitive.ObjectIDFromHex(httpx.AdminID(r))
+	var a models.Admin
+	_ = h.Admins.FindOne(r.Context(), bson.M{"_id": aid}).Decode(&a)
+	h.auditRaw(r.Context(), aid, "logout", a.Username, "")
+	httpx.JSON(w, 200, map[string]bool{"ok": true})
 }
 
 // Setup2FA generates (but does not activate) a new TOTP secret and returns the
@@ -960,6 +913,7 @@ func (h *Handler) ListAdmins(w http.ResponseWriter, r *http.Request) {
 
 type createAdminReq struct {
 	Username string `json:"username"`
+	Name     string `json:"name"`
 	Password string `json:"password"`
 	Role     string `json:"role"`
 }
@@ -985,7 +939,7 @@ func (h *Handler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a := models.Admin{
-		Username: req.Username, PasswordHash: string(hash),
+		Username: req.Username, Name: strings.TrimSpace(req.Name), PasswordHash: string(hash),
 		Role: req.Role, IsActive: true, CreatedAt: time.Now(),
 	}
 	res, err := h.Admins.InsertOne(r.Context(), a)
@@ -1003,10 +957,11 @@ func (h *Handler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateAdminReq struct {
-	Role            string `json:"role"`
-	IsActive        *bool  `json:"isActive"`
-	Password        string `json:"password"`
-	DisableTwoFactor bool  `json:"disableTwoFactor"` // superadmin resets a locked-out admin
+	Role            string  `json:"role"`
+	Name            *string `json:"name"`
+	IsActive        *bool   `json:"isActive"`
+	Password        string  `json:"password"`
+	DisableTwoFactor bool   `json:"disableTwoFactor"` // superadmin resets a locked-out admin
 }
 
 // UpdateAdmin changes another admin's role/active state or resets their
@@ -1035,6 +990,9 @@ func (h *Handler) UpdateAdmin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		set["role"] = req.Role
+	}
+	if req.Name != nil {
+		set["name"] = strings.TrimSpace(*req.Name)
 	}
 	if req.IsActive != nil {
 		if self && !*req.IsActive {
@@ -1558,13 +1516,46 @@ func (h *Handler) Audit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cur.Close(ctx)
-	out := []models.AdminAudit{}
+	type auditRow struct {
+		models.AdminAudit
+		AdminName string `json:"adminName"`
+	}
+	rows := []auditRow{}
+	idSet := map[primitive.ObjectID]struct{}{}
 	for cur.Next(ctx) {
 		var a models.AdminAudit
 		if err := cur.Decode(&a); err == nil {
-			out = append(out, a)
+			rows = append(rows, auditRow{AdminAudit: a})
+			if !a.AdminID.IsZero() {
+				idSet[a.AdminID] = struct{}{}
+			}
 		}
 	}
+	// Resolve admin ids -> display name (name yoki username) in one query.
+	names := map[primitive.ObjectID]string{}
+	if len(idSet) > 0 {
+		ids := make([]primitive.ObjectID, 0, len(idSet))
+		for id := range idSet {
+			ids = append(ids, id)
+		}
+		ac, err := h.Admins.Find(ctx, bson.M{"_id": bson.M{"$in": ids}})
+		if err == nil {
+			defer ac.Close(ctx)
+			for ac.Next(ctx) {
+				var a models.Admin
+				if ac.Decode(&a) == nil {
+					disp := a.Name
+					if disp == "" {
+						disp = a.Username
+					}
+					names[a.ID] = disp
+				}
+			}
+		}
+	}
+	for i := range rows {
+		rows[i].AdminName = names[rows[i].AdminID]
+	}
 	total, _ := h.AuditCol.CountDocuments(ctx, filter)
-	paged(w, out, page, limit, total)
+	paged(w, rows, page, limit, total)
 }

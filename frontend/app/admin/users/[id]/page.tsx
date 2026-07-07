@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { api, User, Elon, Application, Review } from "@/lib/api";
+import { api, User, Elon, Application } from "@/lib/api";
 import { Modal } from "@/components/Modal";
 
 interface Report { id: string; reason: string; description?: string; status: string; createdAt: string; }
@@ -10,7 +10,6 @@ interface Detail {
   user: User;
   elons: Elon[];
   applications: Application[];
-  reviews: Review[];
   reports: Report[];
 }
 
@@ -62,9 +61,7 @@ export default function AdminUserDetail() {
             <button onClick={() => block(!u.isBlocked)} className={u.isBlocked ? "btn-primary btn-sm" : "btn-danger btn-sm"}>{u.isBlocked ? "Blokdan ochish" : "Bloklash"}</button>
           </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-          <Stat label="Reyting" value={u.rating.toFixed(1)} />
-          <Stat label="Sharhlar" value={u.reviewsCount} />
+        <div className="grid grid-cols-2 gap-2 text-sm">
           <Stat label="Bajarilgan ish" value={u.completedJobsCount} />
           <Stat label="Holat" value={u.isBlocked ? "Bloklangan" : "Faol"} />
         </div>
@@ -80,12 +77,6 @@ export default function AdminUserDetail() {
       <Section title={`Arizalari (${d.applications.length})`}>
         {d.applications.length ? d.applications.map((a) => (
           <Row key={a.id}><span className="font-medium">{a.elonTitle}</span><span className="text-[color:var(--text-muted)]">{a.status} · {a.amount.toLocaleString("uz-UZ")}</span></Row>
-        )) : <Empty />}
-      </Section>
-
-      <Section title={`Sharhlar (${d.reviews.length})`}>
-        {d.reviews.length ? d.reviews.map((rv) => (
-          <Row key={rv.id}><span>★ {rv.rating} · {rv.direction === "employer_to_worker" ? "ishchi sifatida" : "ish beruvchi sifatida"}</span><span className="text-[color:var(--text-muted)] truncate max-w-[50%]">{rv.comment}</span></Row>
         )) : <Empty />}
       </Section>
 

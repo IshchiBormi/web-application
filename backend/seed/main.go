@@ -288,69 +288,10 @@ func main() {
 	}
 	fmt.Printf("applications: %d\n", len(apps))
 
-	// ---- reviews (for completed apps) ----
-	reviews := []models.Review{}
-	for _, a := range apps {
-		if a.Status != "completed" {
-			continue
-		}
-		reviews = append(reviews, models.Review{
-			ID:            primitive.NewObjectID(),
-			ApplicationID: a.ID,
-			ElonID:        a.ElonID,
-			FromUserID:    a.EmployerID,
-			ToUserID:      a.WorkerID,
-			Direction:     "employer_to_worker",
-			Rating:        4 + rand.Intn(2),
-			Comment:       "Yaxshi ish bajardi, rahmat!",
-			CreatedAt:     time.Now(),
-		})
-		reviews = append(reviews, models.Review{
-			ID:            primitive.NewObjectID(),
-			ApplicationID: a.ID,
-			ElonID:        a.ElonID,
-			FromUserID:    a.WorkerID,
-			ToUserID:      a.EmployerID,
-			Direction:     "worker_to_employer",
-			Rating:        4 + rand.Intn(2),
-			Comment:       "Yaxshi buyurtmachi, vaqtida to'ladi.",
-			CreatedAt:     time.Now(),
-		})
-	}
-	// pad to ≥15 with extra reviews on random users
-	for len(reviews) < 16 {
-		from := users[rand.Intn(len(users))]
-		to := users[rand.Intn(len(users))]
-		if from.ID == to.ID {
-			continue
-		}
-		reviews = append(reviews, models.Review{
-			ID:            primitive.NewObjectID(),
-			ApplicationID: primitive.NewObjectID(),
-			ElonID:        elons[rand.Intn(len(elons))].ID,
-			FromUserID:    from.ID,
-			ToUserID:      to.ID,
-			Direction:     "employer_to_worker",
-			Rating:        3 + rand.Intn(3),
-			Comment:       "Yaxshi.",
-			CreatedAt:     time.Now(),
-		})
-	}
-	{
-		docs := make([]any, len(reviews))
-		for i, r := range reviews {
-			docs[i] = r
-		}
-		if _, err := mdb.Collection("reviews").InsertMany(ctx, docs); err != nil {
-			log.Printf("reviews: %v", err)
-		}
-	}
-	fmt.Printf("reviews: %d\n", len(reviews))
-
 	// ---- notifications ----
 	notifs := []any{}
 	types := []string{"new_application", "application_accepted", "application_rejected",
-		"job_completed_request", "job_completed", "new_review", "system"}
+		"job_completed_request", "job_completed", "system"}
 	for i := 0; i < 20; i++ {
 		t := types[i%len(types)]
 		u := users[i%len(users)]
@@ -434,63 +375,7 @@ func main() {
 	}
 	fmt.Printf("admins: %d\n", len(admins))
 
-	// recompute ratings from reviews to make data coherent
-	if err := recomputeRatings(ctx, mdb); err != nil {
-		log.Printf("recompute: %v", err)
-	}
-
 	fmt.Println("seed done")
-}
-
-func recomputeRatings(ctx context.Context, mdb *mongo.Database) error {
-	cur, err := mdb.Collection("users").Find(ctx, bson.M{})
-	if err != nil {
-		return err
-	}
-	defer cur.Close(ctx)
-	for cur.Next(ctx) {
-		var u models.User
-		if err := cur.Decode(&u); err != nil {
-			continue
-		}
-		rcur, err := mdb.Collection("reviews").Find(ctx, bson.M{"toUserId": u.ID})
-		if err != nil {
-			continue
-		}
-		var sum, n, wSum, wN, eSum, eN int
-		for rcur.Next(ctx) {
-			var r models.Review
-			if err := rcur.Decode(&r); err == nil {
-				sum += r.Rating
-				n++
-				switch r.Direction {
-				case "employer_to_worker":
-					wSum += r.Rating
-					wN++
-				case "worker_to_employer":
-					eSum += r.Rating
-					eN++
-				}
-			}
-		}
-		rcur.Close(ctx)
-		_, _ = mdb.Collection("users").UpdateOne(ctx, bson.M{"_id": u.ID}, bson.M{"$set": bson.M{
-			"rating":               avg1(sum, n),
-			"reviewsCount":         n,
-			"workerRating":         avg1(wSum, wN),
-			"workerReviewsCount":   wN,
-			"employerRating":       avg1(eSum, eN),
-			"employerReviewsCount": eN,
-		}})
-	}
-	return nil
-}
-
-func avg1(sum, n int) float64 {
-	if n == 0 {
-		return 0
-	}
-	return float64(int(float64(sum)/float64(n)*10+0.5)) / 10
 }
 
 func pick(s []string) string { return s[rand.Intn(len(s))] }

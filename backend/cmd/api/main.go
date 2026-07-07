@@ -22,7 +22,6 @@ import (
 	"github.com/ishchibormi/backend/internal/feedback"
 	"github.com/ishchibormi/backend/internal/notification"
 	"github.com/ishchibormi/backend/internal/report"
-	"github.com/ishchibormi/backend/internal/review"
 	"github.com/ishchibormi/backend/internal/upload"
 	"github.com/ishchibormi/backend/internal/user"
 	"github.com/ishchibormi/backend/pkg/db"
@@ -91,7 +90,6 @@ func main() {
 	catH := category.NewHandler(mdb)
 	elonH := elon.NewHandler(mdb, s3svc)
 	appH := application.NewHandler(mdb, notif)
-	revH := review.NewHandler(mdb, notif)
 	repH := report.NewHandler(mdb)
 	fbH := feedback.NewHandler(mdb)
 	uploadH := upload.NewHandler(s3svc)
@@ -152,7 +150,6 @@ func main() {
 		r.Get("/users/{id}", userH.GetPublic)
 		r.Get("/users", userH.Search)
 		r.Get("/categories", catH.List)
-		r.Get("/users/{id}/reviews", revH.ListForUser)
 
 		// Auth-protected
 		r.Group(func(r chi.Router) {
@@ -180,7 +177,6 @@ func main() {
 			r.Post("/applications/{id}/reject", appH.Reject)
 			r.Post("/applications/{id}/cancel", appH.Cancel)
 			r.Post("/applications/{id}/confirm-done", appH.ConfirmDone)
-			r.Post("/applications/{id}/review", revH.Create)
 
 			r.Get("/my/applications", appH.MyApplications)
 			r.Get("/my/elons/applications", appH.MyElonsApplications)
@@ -209,11 +205,11 @@ func main() {
 			// Overview — read-only, any authenticated admin (incl. support).
 			r.Get("/dashboard", adminH.Dashboard)
 			r.Get("/stats", adminH.Stats)
-			r.Get("/audit", adminH.Audit)
 			r.Get("/categories", adminH.ListCategories)
 
 			// Current admin + own two-factor — any authenticated admin.
 			r.Get("/me", adminH.Me)
+			r.Post("/logout", adminH.Logout)
 			r.Post("/2fa/setup", adminH.Setup2FA)
 			r.Post("/2fa/enable", adminH.Enable2FA)
 			r.Post("/2fa/disable", adminH.Disable2FA)
@@ -221,6 +217,8 @@ func main() {
 			// Moderation — superadmin + moderator.
 			r.Group(func(r chi.Router) {
 				r.Use(httpx.RequireRole("moderator"))
+				// Audit log — superadmin + moderator only (support ko'rmaydi).
+				r.Get("/audit", adminH.Audit)
 				r.Get("/users", adminH.ListUsers)
 				r.Get("/users/{id}", adminH.GetUser)
 				r.Post("/users/{id}/block", adminH.BlockUser)
@@ -232,8 +230,6 @@ func main() {
 				r.Patch("/elons/{id}/status", adminH.SetElonStatus)
 				r.Get("/reports", adminH.ListReports)
 				r.Patch("/reports/{id}/resolve", repH.Resolve)
-				r.Get("/reviews", adminH.ListReviews)
-				r.Delete("/reviews/{id}", adminH.DeleteReview)
 				r.Get("/applications", adminH.ListApplications)
 				r.Get("/export/users.csv", adminH.ExportUsers)
 				r.Get("/export/elons.csv", adminH.ExportElons)

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getAdminToken, setAdminToken, getAdminRole, AdminRole } from "@/lib/api";
+import { api, getAdminToken, setAdminToken, getAdminRole, AdminRole } from "@/lib/api";
 
 // roles: which non-superadmin roles may see the item. undefined => everyone;
 // [] => superadmin only. superadmin always sees everything.
@@ -12,13 +12,10 @@ const nav: { href: string; label: string; roles?: AdminRole[] }[] = [
   { href: "/admin/elons", label: "E'lonlar", roles: ["moderator"] },
   { href: "/admin/applications", label: "Arizalar", roles: ["moderator"] },
   { href: "/admin/categories", label: "Turkumlar" },
-  { href: "/admin/reviews", label: "Sharhlar", roles: ["moderator"] },
-  { href: "/admin/reports", label: "Shikoyatlar", roles: ["moderator"] },
-  { href: "/admin/feedback", label: "Taklif va shikoyatlar", roles: ["moderator", "support"] },
   { href: "/admin/notifications", label: "Tarqatma", roles: [] },
   { href: "/admin/admins", label: "Adminlar", roles: [] },
   { href: "/admin/security", label: "Xavfsizlik" },
-  { href: "/admin/audit", label: "Audit log" },
+  { href: "/admin/audit", label: "Audit log", roles: ["moderator"] },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -32,7 +29,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setRole(getAdminRole() as AdminRole | null);
   }, [pathname, router]);
   if (pathname === "/admin/login") return <>{children}</>;
-  const logout = () => { setAdminToken(null); router.replace("/admin/login"); };
+  const logout = async () => {
+    // Audit yozuvi uchun backendga xabar beramiz (token stateless — baribir
+    // client tomonda tozalanadi). Xato bo'lsa ham chiqishни davom ettiramiz.
+    try { await api.post("/api/admin/logout", {}, { auth: "admin" } as any); } catch { /* ignore */ }
+    setAdminToken(null);
+    router.replace("/admin/login");
+  };
   const canSee = (n: (typeof nav)[number]) =>
     role === "superadmin" || !n.roles || (role != null && n.roles.includes(role));
   return (

@@ -10,7 +10,6 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const title = name ? `${name} — ishchi profili` : "Foydalanuvchi profili";
   const bits = [
     u?.region ? String(u.region) : "",
-    typeof u?.workerRating === "number" && u.workerRating > 0 ? `Reyting: ${u.workerRating.toFixed(1)}` : "",
   ].filter(Boolean);
   const description =
     (name ? `${name} — ` : "") +

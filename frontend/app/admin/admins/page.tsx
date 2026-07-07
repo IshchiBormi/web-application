@@ -9,21 +9,35 @@ export default function AdminAdmins() {
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [username, setUsername] = useState("");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<AdminRole>("moderator");
   const [editA, setEditA] = useState<Admin | null>(null);
   const [newPass, setNewPass] = useState("");
   const [delA, setDelA] = useState<Admin | null>(null);
+  const [meId, setMeId] = useState<string>("");
   const [err, setErr] = useState("");
 
   async function load() { setAdmins(await api.get<Admin[]>("/api/admin/admins", { auth: "admin" } as any)); }
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.get<Admin>("/api/admin/me", { auth: "admin" } as any).then((m) => setMeId(m.id)).catch(() => {});
+  }, []);
+
+  async function toggleActive(a: Admin) {
+    setErr("");
+    if (a.id === meId) { setErr("O'zingizning hisobingizni nofaol qila olmaysiz."); return; }
+    try {
+      await api.patch(`/api/admin/admins/${a.id}`, { isActive: !a.isActive }, { auth: "admin" } as any);
+      load();
+    } catch (e: any) { setErr(e?.message || "Xatolik"); }
+  }
 
   async function create() {
     setErr("");
     try {
-      await api.post("/api/admin/admins", { username, password, role }, { auth: "admin" } as any);
-      setCreateOpen(false); setUsername(""); setPassword(""); setRole("moderator");
+      await api.post("/api/admin/admins", { username, name: name.trim(), password, role }, { auth: "admin" } as any);
+      setCreateOpen(false); setUsername(""); setName(""); setPassword(""); setRole("moderator");
       load();
     } catch (e: any) { setErr(e?.message || "Xatolik"); }
   }
@@ -31,7 +45,7 @@ export default function AdminAdmins() {
     if (!editA) return;
     setErr("");
     try {
-      const body: any = { role: editA.role, isActive: editA.isActive };
+      const body: any = { role: editA.role, isActive: editA.isActive, name: (editA.name || "").trim() };
       if (newPass.trim()) body.password = newPass.trim();
       await api.patch(`/api/admin/admins/${editA.id}`, body, { auth: "admin" } as any);
       setEditA(null); setNewPass("");
@@ -56,35 +70,77 @@ export default function AdminAdmins() {
   }
 
   return (
-    <div className="card p-4 grid gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="font-semibold text-sm">Adminlar ({admins.length})</div>
+    <div className="flex flex-col gap-4">
+      {/* Sarlavha — tepada ixcham navbar sifatida */}
+      <div className="card flex items-center justify-between gap-2 px-4 py-3">
+        <div>
+          <h1 className="text-lg font-bold heading leading-tight">Adminlar</h1>
+          <p className="text-xs text-[color:var(--text-muted)]">Jami {admins.length} ta admin</p>
+        </div>
         <button onClick={() => { setErr(""); setCreateOpen(true); }} className="btn-primary btn-sm">+ Yangi admin</button>
       </div>
-      {err && <div className="text-danger text-sm">{err}</div>}
+      {err && !createOpen && !editA && !delA && <div className="text-danger text-sm">{err}</div>}
 
-      <div className="-mx-4 px-4 overflow-x-auto scroll-y-auto">
-        <table className="w-full min-w-[560px] text-sm">
-          <thead><tr className="text-left text-[color:var(--text-muted)]"><th className="py-2">Username</th><th>Rol</th><th>Holat</th><th>2FA</th><th>Yaratilgan</th><th></th></tr></thead>
-          <tbody>
-            {admins.map((a) => (
-              <tr key={a.id} className="border-t" style={{ borderColor: "var(--border)" }}>
-                <td className="py-2 font-medium">{a.username}</td>
-                <td className="capitalize">{a.role}</td>
-                <td>{a.isActive ? "Faol" : "Faolsiz"}</td>
-                <td>{a.totpEnabled ? <span className="text-success">yoqilgan</span> : "—"}</td>
-                <td className="whitespace-nowrap">{new Date(a.createdAt).toLocaleDateString("uz-UZ")}</td>
-                <td>
-                  <div className="flex flex-wrap gap-2 justify-end">
-                    {a.totpEnabled && <button onClick={() => resetTwoFactor(a.id)} className="btn-secondary btn-sm">2FA reset</button>}
-                    <button onClick={() => { setErr(""); setNewPass(""); setEditA(a); }} className="btn-secondary btn-sm">Tahrir</button>
-                    <button onClick={() => { setErr(""); setDelA(a); }} className="btn-danger btn-sm">O'chirish</button>
-                  </div>
-                </td>
+      {/* Adminlar qatori */}
+      <div className="card p-0 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm table-fixed">
+            <colgroup>
+              <col style={{ width: "18%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "28%" }} />
+            </colgroup>
+            <thead>
+              <tr className="text-left text-[color:var(--text-muted)] border-b" style={{ borderColor: "var(--border)" }}>
+                <th className="py-3 px-4">Admin</th><th className="px-4">Rol</th><th className="px-4">Holat</th><th className="px-4">2FA</th><th className="px-4">Yaratilgan</th><th className="px-4 text-right">Amallar</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {admins.map((a) => (
+                <tr key={a.id} className="border-b last:border-0" style={{ borderColor: "var(--border)" }}>
+                  <td className="py-3 px-4 truncate">
+                    <div className="font-medium truncate">{a.name || a.username}</div>
+                    {a.name && <div className="text-xs text-[color:var(--text-muted)] truncate">@{a.username}</div>}
+                  </td>
+                  <td className="px-4 capitalize truncate">{a.role}</td>
+                  <td className="px-4">
+                    {a.id === meId ? (
+                      <span
+                        className="inline-flex justify-center w-[84px] text-xs font-medium px-2 py-0.5 rounded-full border opacity-70"
+                        style={{ color: "var(--success, #16a34a)", borderColor: "var(--success, #16a34a)" }}
+                        title="O'z hisobingizni nofaol qila olmaysiz"
+                      >Faol</span>
+                    ) : (
+                      <button
+                        onClick={() => toggleActive(a)}
+                        className="inline-flex justify-center w-[84px] text-xs font-medium px-2 py-0.5 rounded-full border transition hover:opacity-80"
+                        style={a.isActive
+                          ? { color: "var(--success, #16a34a)", borderColor: "var(--success, #16a34a)" }
+                          : { color: "var(--text-muted)", borderColor: "var(--border)" }}
+                        title={a.isActive ? "Bosib vaqtincha nofaol qilish" : "Bosib qayta faollashtirish"}
+                      >{a.isActive ? "Faol" : "Nofaol"}</button>
+                    )}
+                  </td>
+                  <td className="px-4">{a.totpEnabled ? <span className="text-success">yoqilgan</span> : "—"}</td>
+                  <td className="px-4 whitespace-nowrap">{new Date(a.createdAt).toLocaleDateString("uz-UZ")}</td>
+                  <td className="px-4">
+                    <div className="flex gap-2 justify-end">
+                      {a.totpEnabled && <button onClick={() => resetTwoFactor(a.id)} className="btn-secondary btn-sm">2FA reset</button>}
+                      <button onClick={() => { setErr(""); setNewPass(""); setEditA(a); }} className="btn-secondary btn-sm">Tahrir</button>
+                      <button onClick={() => { setErr(""); setDelA(a); }} className="btn-danger btn-sm">O'chirish</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {admins.length === 0 && (
+                <tr><td colSpan={6} className="py-8 text-center text-[color:var(--text-muted)]">Adminlar yo'q</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Yaratish */}
@@ -95,11 +151,20 @@ export default function AdminAdmins() {
         </>
       }>
         <div className="grid gap-2">
-          <input className="input" placeholder="username" value={username} onChange={(e) => setUsername(e.target.value)} />
-          <input className="input" type="password" placeholder="parol (kamida 6 belgi)" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <select className="input" value={role} onChange={(e) => setRole(e.target.value as AdminRole)}>
-            {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
+          <label className="text-sm">Ism (to'liq ism)
+            <input className="input mt-1" placeholder="Masalan: Diyorbek Primqulov" value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label className="text-sm">Username
+            <input className="input mt-1" placeholder="username" value={username} onChange={(e) => setUsername(e.target.value)} />
+          </label>
+          <label className="text-sm">Parol
+            <input className="input mt-1" type="password" placeholder="kamida 6 belgi" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <label className="text-sm">Rol
+            <select className="input mt-1" value={role} onChange={(e) => setRole(e.target.value as AdminRole)}>
+              {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </label>
           {err && <div className="text-danger text-sm">{err}</div>}
         </div>
       </Modal>
@@ -113,6 +178,9 @@ export default function AdminAdmins() {
       }>
         {editA && (
           <div className="grid gap-2">
+            <label className="text-sm">Ism (to'liq ism)
+              <input className="input mt-1" placeholder="Masalan: Diyorbek Primqulov" value={editA.name || ""} onChange={(e) => setEditA({ ...editA, name: e.target.value })} />
+            </label>
             <label className="text-sm">Rol
               <select className="input mt-1" value={editA.role} onChange={(e) => setEditA({ ...editA, role: e.target.value as AdminRole })}>
                 {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}

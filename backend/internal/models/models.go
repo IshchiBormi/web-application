@@ -162,18 +162,6 @@ type Application struct {
 }
 
 // Review
-type Review struct {
-	ID            primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	ApplicationID primitive.ObjectID `bson:"applicationId" json:"applicationId"`
-	ElonID        primitive.ObjectID `bson:"elonId" json:"elonId"`
-	FromUserID    primitive.ObjectID `bson:"fromUserId" json:"fromUserId"`
-	ToUserID      primitive.ObjectID `bson:"toUserId" json:"toUserId"`
-	Direction     string             `bson:"direction" json:"direction"`
-	Rating        int                `bson:"rating" json:"rating"`
-	Comment       string             `bson:"comment,omitempty" json:"comment"`
-	CreatedAt     time.Time          `bson:"createdAt" json:"createdAt"`
-}
-
 // Notification
 type Notification struct {
 	ID             primitive.ObjectID `bson:"_id,omitempty" json:"id"`
@@ -223,6 +211,7 @@ type Feedback struct {
 type Admin struct {
 	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	Username     string             `bson:"username" json:"username"`
+	Name         string             `bson:"name,omitempty" json:"name"`
 	PasswordHash string             `bson:"passwordHash" json:"-"`
 	Role         string             `bson:"role" json:"role"`
 	IsActive     bool               `bson:"isActive" json:"isActive"`

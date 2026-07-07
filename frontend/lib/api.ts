@@ -125,12 +125,6 @@ export interface User {
   district?: string;
   bio?: string;
   skills?: string[];
-  rating: number;
-  reviewsCount: number;
-  workerRating?: number;
-  workerReviewsCount?: number;
-  employerRating?: number;
-  employerReviewsCount?: number;
   completedJobsCount: number;
   isPhoneVerified: boolean;
   isBlocked: boolean;
@@ -185,7 +179,6 @@ export interface Elon {
   publishedAt?: string;
   createdAt: string;
   ownerName?: string;
-  ownerRating?: number;
   ownerAvatarUrl?: string;
   images?: string[];
 }
@@ -232,24 +225,13 @@ export interface Feedback {
   status: "open" | "resolved";
   createdAt: string;
 }
-export interface Review {
-  id: ID;
-  applicationId: ID;
-  elonId: ID;
-  fromUserId: ID;
-  toUserId: ID;
-  direction: "employer_to_worker" | "worker_to_employer";
-  rating: number;
-  comment?: string;
-  createdAt: string;
-}
-
 // ----- admin types -----
 export type AdminRole = "superadmin" | "moderator" | "support";
 
 export interface Admin {
   id: ID;
   username: string;
+  name?: string;
   role: AdminRole;
   isActive: boolean;
   totpEnabled: boolean;
@@ -259,6 +241,7 @@ export interface Admin {
 export interface AdminAudit {
   id: ID;
   adminId: ID;
+  adminName?: string;
   action: string;
   target?: string;
   detail?: string;

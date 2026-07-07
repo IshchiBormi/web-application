@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { Star, MapPin, Clock, Share2, ArrowUpRight, Briefcase, SlidersHorizontal, X } from "lucide-react";
+import { MapPin, Clock, Share2, ArrowUpRight, Briefcase, SlidersHorizontal, X } from "lucide-react";
 import { api, Category, Elon, GENDER_LABEL, GENDER_OPTIONS } from "@/lib/api";
 import { Shell, ShellSearch } from "@/components/Shell";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -100,7 +100,6 @@ export default function Dashboard() {
             <Select value={sort} onChange={(e) => setSort(e.target.value)}>
               <option value="time">{t("Eng yangilari")}</option>
               <option value="price">{t("Yuqori narx")}</option>
-              <option value="rating">{t("Yuqori reyting")}</option>
             </Select>
           </div>
         </div>
@@ -184,11 +183,6 @@ function JobCard({ e }: { e: Elon }) {
           </div>
           <div className="mt-0.5 flex items-center gap-2 text-xs muted">
             <span className="truncate">{e.ownerName || "—"}</span>
-            <span>·</span>
-            <span className="inline-flex items-center gap-1">
-              <Star size={11} className="text-accent-amber" fill="currentColor" />
-              {(e.ownerRating ?? 0).toFixed(1)}
-            </span>
           </div>
         </div>
       </div>

@@ -51,53 +51,79 @@ export default function AdminUsers() {
   const users = data?.items ?? [];
 
   return (
-    <div className="card p-4 grid gap-3">
-      {/* Filtrlar */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <input className="input max-w-[220px]" placeholder="Ism yoki telefon…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <input className="input max-w-[160px]" placeholder="Viloyat" value={region} onChange={(e) => setRegion(e.target.value)} />
-        <select className="input max-w-[150px]" value={blocked} onChange={(e) => setBlocked(e.target.value)}>
-          <option value="">Holat (barchasi)</option>
-          <option value="0">Faol</option>
-          <option value="1">Bloklangan</option>
-        </select>
-        <select className="input max-w-[150px]" value={verified} onChange={(e) => setVerified(e.target.value)}>
-          <option value="">Tasdiq (barchasi)</option>
-          <option value="1">Tasdiqlangan</option>
-          <option value="0">Tasdiqlanmagan</option>
-        </select>
-        <button onClick={exportCsv} className="btn-secondary btn-sm ml-auto">CSV yuklab olish</button>
-        <div className="text-sm text-[color:var(--text-muted)]">Jami: {total}</div>
+    <div className="flex flex-col gap-4">
+      {/* Sarlavha — tepada ixcham navbar sifatida */}
+      <div className="card flex items-center justify-between gap-3 px-4 py-3">
+        <div>
+          <h1 className="text-lg font-bold heading leading-tight">Foydalanuvchilar</h1>
+          <p className="text-xs text-[color:var(--text-muted)]">Jami {total} ta foydalanuvchi</p>
+        </div>
+        <button onClick={exportCsv} className="btn-secondary btn-sm gap-1.5">CSV yuklab olish</button>
       </div>
 
-      <div className="-mx-4 px-4 overflow-x-auto scroll-y-auto">
-        <table className="w-full min-w-[820px] text-sm">
-          <thead><tr className="text-left text-[color:var(--text-muted)]"><th className="py-2">Ism</th><th>Telefon</th><th>Viloyat</th><th>Reyting</th><th>Holat</th><th></th></tr></thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-t" style={{ borderColor: "var(--border)" }}>
-                <td className="py-2 whitespace-nowrap">
-                  <Link href={`/admin/users/${u.id}`} className="hover:underline font-medium">{u.firstName} {u.lastName}</Link>
-                </td>
-                <td className="whitespace-nowrap">{u.phone}</td>
-                <td>{u.region}</td>
-                <td>{u.rating.toFixed(1)}</td>
-                <td>{u.isBlocked ? <span className="text-danger">bloklangan</span> : "faol"}</td>
-                <td>
-                  <div className="flex flex-wrap gap-2 justify-end">
-                    <Link href={`/admin/users/${u.id}`} className="btn-secondary btn-sm">Batafsil</Link>
-                    <button onClick={() => block(u.id, !u.isBlocked)} className="btn-secondary btn-sm">{u.isBlocked ? "Ochish" : "Bloklash"}</button>
-                    <button onClick={() => setDelId(u.id)} className="btn-danger btn-sm">O'chirish</button>
-                  </div>
-                </td>
+      {/* Filtr + jadval */}
+      <div className="card p-0 overflow-hidden">
+        <div className="flex flex-wrap gap-2 items-center px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+          <input className="input max-w-[220px]" placeholder="Ism yoki telefon…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="input max-w-[150px]" placeholder="Viloyat" value={region} onChange={(e) => setRegion(e.target.value)} />
+          <select className="input max-w-[160px]" value={blocked} onChange={(e) => setBlocked(e.target.value)}>
+            <option value="">Holat (barchasi)</option>
+            <option value="0">Faol</option>
+            <option value="1">Bloklangan</option>
+          </select>
+          <select className="input max-w-[170px]" value={verified} onChange={(e) => setVerified(e.target.value)}>
+            <option value="">Tasdiq (barchasi)</option>
+            <option value="1">Tasdiqlangan</option>
+            <option value="0">Tasdiqlanmagan</option>
+          </select>
+          <div className="text-sm text-[color:var(--text-muted)] ml-auto">Jami: {total}</div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[860px] text-sm table-fixed">
+            <colgroup>
+              <col style={{ width: "24%" }} />
+              <col style={{ width: "18%" }} />
+              <col style={{ width: "15%" }} />
+              <col style={{ width: "15%" }} />
+              <col style={{ width: "28%" }} />
+            </colgroup>
+            <thead>
+              <tr className="text-left text-[color:var(--text-muted)] border-b" style={{ borderColor: "var(--border)" }}>
+                <th className="py-3 px-4">Ism</th><th className="px-4">Telefon</th><th className="px-4">Viloyat</th><th className="px-4">Holat</th><th className="px-4 text-right">Amallar</th>
               </tr>
-            ))}
-            {!users.length && <tr><td colSpan={6} className="py-6 text-center text-[color:var(--text-muted)]">Hech narsa topilmadi</td></tr>}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id} className="border-b last:border-0" style={{ borderColor: "var(--border)" }}>
+                  <td className="py-3 px-4 truncate">
+                    <Link href={`/admin/users/${u.id}`} className="hover:underline font-medium">{u.firstName} {u.lastName}</Link>
+                  </td>
+                  <td className="px-4 whitespace-nowrap">{u.phone}</td>
+                  <td className="px-4 truncate">{u.region}</td>
+                  <td className="px-4">
+                    <span className="inline-flex justify-center w-[92px] text-xs font-medium px-2 py-0.5 rounded-full border"
+                      style={u.isBlocked
+                        ? { color: "var(--danger, #dc2626)", borderColor: "var(--danger, #dc2626)" }
+                        : { color: "var(--success, #16a34a)", borderColor: "var(--success, #16a34a)" }}>
+                      {u.isBlocked ? "Bloklangan" : "Faol"}
+                    </span>
+                  </td>
+                  <td className="px-4">
+                    <div className="flex gap-2 justify-end">
+                      <Link href={`/admin/users/${u.id}`} className="btn-secondary btn-sm">Batafsil</Link>
+                      <button onClick={() => block(u.id, !u.isBlocked)} className="btn-secondary btn-sm">{u.isBlocked ? "Ochish" : "Bloklash"}</button>
+                      <button onClick={() => setDelId(u.id)} className="btn-danger btn-sm">O'chirish</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!users.length && <tr><td colSpan={6} className="py-8 text-center text-[color:var(--text-muted)]">Hech narsa topilmadi</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-4 py-3"><Pagination page={page} pages={pages} onPage={setPage} /></div>
       </div>
-
-      <Pagination page={page} pages={pages} onPage={setPage} />
 
       <Modal open={!!delId} onClose={() => setDelId("")} title="Foydalanuvchini o'chirasizmi?" footer={
         <>
