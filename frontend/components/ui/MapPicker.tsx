@@ -30,6 +30,11 @@ export function MapPicker({ value, onChange, height = 320 }: Props) {
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  // Ikki asosiy qatlam refda saqlanadi — qatlamni faqat foydalanuvchi tugma
+  // orqali almashtiradi, React qayta renderlari yoki marker qo'yish unga
+  // TEGMAYDI (shu bois yo'ldoshdan o'zi ko'chaga qaytib qolmaydi).
+  const streetRef = useRef<any>(null);
+  const satRef = useRef<any>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   // Oxirgi uzatilgan koordinata — value o'zgarganda takroriy sinxronni oldini oladi.
@@ -39,6 +44,22 @@ export function MapPicker({ value, onChange, height = 320 }: Props) {
   const [locating, setLocating] = useState(false);
   const [err, setErr] = useState("");
   const [address, setAddress] = useState("");
+  // Faol asosiy qatlam — faqat tugma orqali o'zgaradi.
+  const [base, setBase] = useState<"street" | "satellite">("street");
+
+  // Qatlamni almashtirish: eskisini olib tashlab, yangisini qo'yamiz — shunda
+  // ikkalasi bir vaqtda ko'rinib "aralashib" qolmaydi.
+  function switchBase(kind: "street" | "satellite") {
+    const map = mapRef.current;
+    const street = streetRef.current;
+    const sat = satRef.current;
+    if (!map || !street || !sat) return;
+    const add = kind === "street" ? street : sat;
+    const remove = kind === "street" ? sat : street;
+    if (map.hasLayer(remove)) map.removeLayer(remove);
+    if (!map.hasLayer(add)) add.addTo(map);
+    setBase(kind);
+  }
 
   // Tanlangan nuqta bo'yicha manzil matnini olish (teskari geokodlash).
   async function reverseGeocode(lat: number, lng: number) {
@@ -63,6 +84,9 @@ export function MapPicker({ value, onChange, height = 320 }: Props) {
         const map = L.map(elRef.current).setView([start.lat, start.lng], value ? 16 : 12);
 
         // Ikki asosiy qatlam: ko'cha (OSM) va yo'ldosh (Esri sun'iy yo'ldosh).
+        // Leaflet'ning ichki qatlam almashtirgichi (L.control.layers) o'rniga
+        // o'zimiz boshqaramiz — quyidagi tugmalar orqali (switchBase). Shunda
+        // qatlam faqat foydalanuvchi xohlaganda o'zgaradi va aralashib qolmaydi.
         const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
           maxZoom: 19,
           attribution: "© OpenStreetMap",
@@ -71,12 +95,10 @@ export function MapPicker({ value, onChange, height = 320 }: Props) {
           "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
           { maxZoom: 19, attribution: "© Esri" }
         );
-        street.addTo(map);
-        L.control.layers(
-          { "Ko'cha": street, "Yo'ldosh": satellite },
-          {},
-          { position: "topleft", collapsed: false }
-        ).addTo(map);
+        streetRef.current = street;
+        satRef.current = satellite;
+        // Boshlang'ich qatlam — joriy tanlangan (default: ko'cha).
+        (base === "satellite" ? satellite : street).addTo(map);
 
         function ensureMarker(lat: number, lng: number) {
           if (markerRef.current) {
@@ -189,6 +211,20 @@ export function MapPicker({ value, onChange, height = 320 }: Props) {
         {loading && (
           <div className="absolute inset-0 grid place-items-center bg-[color:var(--card)]/70">
             <Loader2 className="animate-spin muted" size={22} />
+          </div>
+        )}
+        {!loading && !err && (
+          <div className="absolute z-[400] top-2 left-2 flex rounded-lg overflow-hidden shadow-pop border" style={{ borderColor: "var(--border)" }}>
+            {([["street", "Ko'cha"], ["satellite", "Yo'ldosh"]] as const).map(([kind, label]) => (
+              <button
+                key={kind}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); switchBase(kind); }}
+                className={`px-3 py-1.5 text-xs font-medium transition ${base === kind ? "bg-brand-navy text-white" : "bg-[color:var(--card)] hover:bg-black/5"}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         )}
         {!loading && !err && (
