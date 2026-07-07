@@ -35,6 +35,11 @@ export function MapPicker({ value, onChange, height = 320 }: Props) {
   // TEGMAYDI (shu bois yo'ldoshdan o'zi ko'chaga qaytib qolmaydi).
   const streetRef = useRef<any>(null);
   const satRef = useRef<any>(null);
+  // Foydalanuvchi tanlagan qatlam turi refda ham saqlanadi — bu init/effect
+  // yoki React holati (state) closurelariga bog'liq bo'lmagan yagona haqiqat
+  // manbai. Faqat switchBase uni o'zgartiradi, shu bois marker qo'yish, xaritani
+  // siljitish yoki qayta render qatlamni O'ZI o'zgartirib yubormaydi.
+  const baseRef = useRef<"street" | "satellite">("street");
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   // Oxirgi uzatilgan koordinata — value o'zgarganda takroriy sinxronni oldini oladi.
@@ -58,6 +63,7 @@ export function MapPicker({ value, onChange, height = 320 }: Props) {
     const remove = kind === "street" ? sat : street;
     if (map.hasLayer(remove)) map.removeLayer(remove);
     if (!map.hasLayer(add)) add.addTo(map);
+    baseRef.current = kind;
     setBase(kind);
   }
 
@@ -81,7 +87,13 @@ export function MapPicker({ value, onChange, height = 320 }: Props) {
       .then((L) => {
         if (cancelled || !elRef.current || mapRef.current) return;
         const start = value && (value.lat || value.lng) ? value : DEFAULT_CENTER;
-        const map = L.map(elRef.current).setView([start.lat, start.lng], value ? 16 : 12);
+        // Standart zoom (+/-) tugmalarini o'chirib, ularni pastki-o'ng burchakka
+        // qo'yamiz. Manzil yozuvi (attribution) esa pastki-chapga o'tadi — shunda
+        // ular bir-birining ustiga tushmaydi.
+        const map = L.map(elRef.current, { zoomControl: false, attributionControl: false })
+          .setView([start.lat, start.lng], value ? 16 : 12);
+        L.control.zoom({ position: "bottomright" }).addTo(map);
+        L.control.attribution({ position: "bottomleft" }).addTo(map);
 
         // Ikki asosiy qatlam: ko'cha (OSM) va yo'ldosh (Esri sun'iy yo'ldosh).
         // Leaflet'ning ichki qatlam almashtirgichi (L.control.layers) o'rniga
@@ -97,8 +109,10 @@ export function MapPicker({ value, onChange, height = 320 }: Props) {
         );
         streetRef.current = street;
         satRef.current = satellite;
-        // Boshlang'ich qatlam — joriy tanlangan (default: ko'cha).
-        (base === "satellite" ? satellite : street).addTo(map);
+        // Boshlang'ich qatlam — refdan olinadi (default: ko'cha). State emas,
+        // ref ishlatiladi: init faqat bir marta ishlaydi va closurega bog'lanib
+        // qolmaydi.
+        (baseRef.current === "satellite" ? satellite : street).addTo(map);
 
         function ensureMarker(lat: number, lng: number) {
           if (markerRef.current) {
