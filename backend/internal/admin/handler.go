@@ -1389,11 +1389,18 @@ const exportMax = 50000
 
 // csvDownload sets download headers and writes a UTF-8 BOM so Excel opens
 // Cyrillic/Latin text correctly, then returns a writer for the rows.
+//
+// Uses ';' as the field delimiter because Excel in Uzbek/Russian locales
+// expects the semicolon list separator — a comma-delimited file would open
+// with every column crammed into one cell. Go's encoding/csv quotes any
+// field that itself contains ';', so values stay intact.
 func csvDownload(w http.ResponseWriter, filename string) *csv.Writer {
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
 	_, _ = w.Write([]byte{0xEF, 0xBB, 0xBF})
-	return csv.NewWriter(w)
+	cw := csv.NewWriter(w)
+	cw.Comma = ';'
+	return cw
 }
 
 // ExportUsers streams users (same filters as ListUsers) as CSV.

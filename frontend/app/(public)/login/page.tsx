@@ -33,8 +33,9 @@ export default function LoginPage() {
   }, []);
 
   // Backend botUrl'ni bermasa (username sozlanmagan bo'lsa), token va ochiq
-  // bot username'idan zaxira havola quramiz. Ikkalasi ham bo'lmasa "#".
-  const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || "";
+  // bot username'idan zaxira havola quramiz. NEXT_PUBLIC_BOT_USERNAME sozlanmagan
+  // bo'lsa, rasmiy auth bot (@Ishchi_bormi_auth_bot) default sifatida ishlatiladi.
+  const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || "Ishchi_bormi_auth_bot";
   const effectiveBotUrl =
     botUrl || (tgToken && botUsername ? `https://t.me/${botUsername}?start=${tgToken}` : "");
 

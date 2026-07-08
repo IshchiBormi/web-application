@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutGrid, ListChecks, Briefcase, History,
   Settings, User as UserIcon, PlusCircle, LogOut, Bell as BellIcon,
@@ -28,6 +28,7 @@ export function Shell({ title, search, children }: { title: string; search?: Rea
   const router = useRouter();
   const pathname = usePathname();
   const t = useT();
+  const qc = useQueryClient();
   const [drawer, setDrawer] = useState(false);
 
   // Auth gate
@@ -59,7 +60,11 @@ export function Shell({ title, search, children }: { title: string; search?: Rea
   }, [me, pathname, router]);
 
   function logout() {
-    setAccess(null); setRefresh(null); router.push("/login");
+    setAccess(null); setRefresh(null);
+    // Oldingi sessiyaning keshlangan ma'lumotlari (profil, bildirishnomalar,
+    // ro'yxatlar) yangi/keyingi foydalanuvchida ko'rinib qolmasligi uchun.
+    qc.clear();
+    router.replace("/login");
   }
 
   const sidebar = (
