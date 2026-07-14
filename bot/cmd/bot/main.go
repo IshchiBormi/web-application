@@ -13,22 +13,9 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/ishchibormi/bot/internal/envfile"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
-
-type otpDoc struct {
-	ID         primitive.ObjectID `bson:"_id,omitempty"`
-	TGToken    string             `bson:"tgToken"`
-	Phone      string             `bson:"phone,omitempty"`
-	TelegramID int64              `bson:"telegramId,omitempty"`
-	Code       string             `bson:"code,omitempty"`
-	Attempts   int                `bson:"attempts"`
-	ExpiresAt  time.Time          `bson:"expiresAt"`
-	Used       bool               `bson:"used"`
-	CreatedAt  time.Time          `bson:"createdAt"`
-}
 
 type userDoc struct {
 	Phone      string `bson:"phone"`
@@ -52,6 +39,17 @@ func main() {
 		log.Fatalf("mongo: %v", err)
 	}
 	defer func() { _ = mc.Disconnect(ctx) }()
+
+	// mongo.Connect is lazy — it doesn't actually reach the server. Ping now so a
+	// misconfigured/unreachable MONGO_URI fails loudly at startup instead of every
+	// user silently getting "Xatolik yuz berdi" when they share their contact.
+	pingCtx, cancelPing := context.WithTimeout(ctx, 10*time.Second)
+	if err := mc.Ping(pingCtx, nil); err != nil {
+		cancelPing()
+		log.Fatalf("mongo unreachable (db=%q): %v — check MONGO_URI", dbName, err)
+	}
+	cancelPing()
+
 	otpCol := mc.Database(dbName).Collection("otp_codes")
 	usersCol := mc.Database(dbName).Collection("users")
 
@@ -83,6 +81,7 @@ func main() {
 			if phone, ok := findKnownPhone(ctx, usersCol, m.From.ID); ok {
 				code, err := generateAndStore(ctx, otpCol, args, phone, m.From.ID, otpTTL, otpLen)
 				if err != nil {
+					log.Printf("otp store failed (known user tgID=%d): %v", m.From.ID, err)
 					_, _ = bot.Send(tgbotapi.NewMessage(m.Chat.ID, "Xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko'ring."))
 					continue
 				}
@@ -113,6 +112,7 @@ func main() {
 			phone := normalizePhone(m.Contact.PhoneNumber)
 			code, err := generateAndStore(ctx, otpCol, pending[m.Chat.ID], phone, m.From.ID, otpTTL, otpLen)
 			if err != nil {
+				log.Printf("otp store failed (contact tgID=%d): %v", m.From.ID, err)
 				_, _ = bot.Send(tgbotapi.NewMessage(m.Chat.ID, "Xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko'ring."))
 				continue
 			}
@@ -134,6 +134,8 @@ func findKnownPhone(ctx context.Context, users *mongo.Collection, tgID int64) (s
 	if tgID == 0 {
 		return "", false
 	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	var u userDoc
 	err := users.FindOne(ctx,
 		bson.M{"telegramId": tgID, "phone": bson.M{"$ne": ""}},
@@ -150,6 +152,8 @@ func generateAndStore(ctx context.Context, col *mongo.Collection, token, phone s
 	if err != nil {
 		return "", err
 	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	now := time.Now()
 	if token != "" {
 		res := col.FindOneAndUpdate(ctx,
@@ -162,11 +166,22 @@ func generateAndStore(ctx context.Context, col *mongo.Collection, token, phone s
 			return code, nil
 		}
 	}
-	// fallback: insert a phone-based code (web verifies by code-only fallback)
-	_, err = col.InsertOne(ctx, otpDoc{
-		Phone: phone, TelegramID: tgID, Code: code,
-		ExpiresAt: now.Add(ttl), CreatedAt: now,
-	})
+	// Fallback (bot opened directly, without a web token): keep one active
+	// phone-based code per Telegram user. Upsert instead of insert so retrying
+	// the contact-share updates the same record rather than piling up duplicates
+	// — which also removes any chance of a unique-index collision. Web verifies
+	// this via the code-only (phone) fallback.
+	_, err = col.UpdateOne(ctx,
+		bson.M{"telegramId": tgID, "tgToken": ""},
+		bson.M{
+			"$set": bson.M{
+				"phone": phone, "code": code, "used": false,
+				"attempts": 0, "expiresAt": now.Add(ttl),
+			},
+			"$setOnInsert": bson.M{"createdAt": now},
+		},
+		options.Update().SetUpsert(true),
+	)
 	return code, err
 }
 
