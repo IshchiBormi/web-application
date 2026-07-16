@@ -1,0 +1,38 @@
+# Normalize line endings so Windows checkouts don't turn every file into a diff.
+# Text files are stored with LF in the repo and checked out with LF everywhere
+# (overrides a developer's core.autocrlf=true). This kills the LF/CRLF churn.
+* text=auto eol=lf
+
+# Explicit LF for source / config (belt-and-suspenders).
+*.go    text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.jsx   text eol=lf
+*.json  text eol=lf
+*.css   text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.sh    text eol=lf
+*.env   text eol=lf
+Dockerfile text eol=lf
+Makefile   text eol=lf
+
+# Windows-only scripts must keep CRLF.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Binary assets — never touch line endings.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.svg   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.pdf   binary
