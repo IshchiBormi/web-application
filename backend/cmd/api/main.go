@@ -47,9 +47,13 @@ func main() {
 	if err := db.EnsureIndexes(ctx, mdb); err != nil {
 		log.Warn("ensure indexes", "err", err)
 	}
-	// Eski e'lonlarga ish beruvchi avatarini bir marta to'ldiramiz (idempotent).
-	if err := db.BackfillElonOwnerAvatars(ctx, mdb); err != nil {
-		log.Warn("backfill owner avatars", "err", err)
+	// Bir martalik, versiyalangan migratsiyalar (schema_migrations' da qayd
+	// etiladi — har biri faqat bir marta ishlaydi, shuning uchun ma'lumot
+	// o'sgani sayin boot sekinlashmaydi). Yuqoridagi EnsureIndexes va quyidagi
+	// EnsureDefaults ataylab har boot'da ishlaydi (idempotent / biznes
+	// moslashtiruvi) va bu registrga kirmaydi.
+	if err := db.RunMigrations(ctx, mdb); err != nil {
+		log.Warn("run migrations", "err", err)
 	}
 	// Turkumlarni kanonik ro'yxatga moslashtiramiz (har deploy'da avtomatik):
 	// faqat 3 turkum faol qoladi, eskilari nofaol qilinadi. Ma'lumot o'chmaydi.

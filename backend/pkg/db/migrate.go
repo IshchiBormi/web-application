@@ -11,9 +11,10 @@ import (
 // egasining (user) joriy avataridan to'ldiradi. Yangi e'lonlar bu maydonni
 // yaratilishda oladi; bu funksiya esa eski e'lonlar uchun bir martalik.
 //
-// Idempotent: faqat maydoni hali mavjud bo'lmagan e'lonlarga ta'sir qiladi
-// ($exists:false). Deploy'dan keyin bir marta ishlaydi, keyingi boot'larda
-// hech nimani mos kelmaydi va arzon tugaydi.
+// Bir martalik migratsiya sifatida ro'yxatga olingan (migrations.go) — muvaffaqiyatdan
+// keyin schema_migrations' da qayd etilib, boshqa boot'larda ishga tushmaydi.
+// O'zi ham idempotent: faqat maydoni hali mavjud bo'lmagan e'lonlarga ta'sir
+// qiladi ($exists:false), shuning uchun qayta ishga tushsa ham xavfsiz.
 func BackfillElonOwnerAvatars(ctx context.Context, db *mongo.Database) error {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.M{"ownerAvatarUrl": bson.M{"$exists": false}}}},
