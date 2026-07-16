@@ -36,9 +36,22 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-https://ishchibormi.uz}
       APP_ENV: ${APP_ENV:-production}
       OTP_DEV_RETURN: ${OTP_DEV_RETURN:-false}
+      # Prod EC2'da backend reverse-proxy (TLS) ortida ishlaydi, shuning uchun
+      # standart "true": klient IP X-Forwarded-For'dan olinadi (rate-limit
+      # har bir foydalanuvchi bo'yicha to'g'ri ishlashi uchun). .env buni
+      # override qila oladi (masalan proksisiz sinovda "false").
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-true}
     volumes:
       - avatars:/data/avatars
       - uploads:/app/data/uploads
+    healthcheck:
+      # /healthz JSON endpoint. busybox wget (alpine base) exits non-zero on any
+      # non-2xx, so the container is "healthy" only once the API actually serves.
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   bot:
     build:
@@ -87,7 +100,8 @@ services:
     container_name: ib_frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "3000:3000"
     env_file: .env
