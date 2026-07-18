@@ -36,12 +36,20 @@ export function Shell({ title, search, children }: { title: string; search?: Rea
 
   const { data: me, isError: meError } = useQuery<User>({ queryKey: ["me"], queryFn: () => api.get<User>("/api/me"), retry: false });
 
-  // Sessiya tugagan bo'lsa /api/me 401 qaytaradi va api.ts tokenlarni tozalaydi.
-  // Token tozalangan bo'lsa (getAccess() null) — foydalanuvchini login sahifasiga
+  // Sessiya tugagan bo'lsa /api/me 401 (yoki hisob o'chirilgan bo'lsa 403
+  // account_disabled) qaytaradi va api.ts tokenlarni tozalaydi. Token
+  // tozalangan bo'lsa (getAccess() null) — foydalanuvchini login sahifasiga
   // yo'naltiramiz. Boshqa (masalan server) xatolarida bu ishlamaydi.
+  //
+  // qc.clear() shart: aks holda react-query keshidagi eski `me` saqlanib
+  // qoladi va o'sha brauzerda yangi hisobga kirilganda profil bir zumga eski
+  // ism-familiyani ko'rsatib yuboradi.
   useEffect(() => {
-    if (meError && !getAccess()) router.replace("/login");
-  }, [meError, router]);
+    if (meError && !getAccess()) {
+      qc.clear();
+      router.replace("/login");
+    }
+  }, [meError, router, qc]);
   const { data: notifs } = useQuery<Notification[]>({
     queryKey: ["notifications"],
     queryFn: () => api.get<Notification[]>("/api/notifications"),

@@ -111,7 +111,16 @@ async function request<T>(
     // Sessiya tugagan yoki token yaroqsiz (401) — saqlangan foydalanuvchi
     // tokenlarini tozalaymiz. Shunda ilova "kirgan" holatda qotib qolmaydi
     // va foydalanuvchi qaytadan login qilishga yo'naltiriladi.
-    if (res.status === 401 && auth === "user") {
+    //
+    // 403 account_disabled ham xuddi shunday: hisob boshqa qurilmada (masalan
+    // ilovada) o'chirilgan yoki bloklangan bo'lsa, JWT hali "yaroqli" ko'rinadi
+    // — faqat backend uni rad etadi. Tokenni tozalamasak brauzer o'zini
+    // "kirgan" deb hisoblab qolaveradi: landing'dagi "Kirish" tugmasi /login
+    // o'rniga /dashboard'ga olib boradi va Shell'ning redirect qorovuli
+    // (getAccess() hali ham to'la) hech qachon ishlamaydi.
+    const disabled =
+      res.status === 403 && data?.error?.code === "account_disabled";
+    if ((res.status === 401 || disabled) && auth === "user") {
       setAccess(null);
     }
     const err: APIError = (data && data.error) || { code: "http", message: `HTTP ${res.status}` };
