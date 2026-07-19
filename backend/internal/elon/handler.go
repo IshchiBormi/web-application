@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/ishchibormi/backend/internal/category"
 	"github.com/ishchibormi/backend/internal/models"
+	"github.com/ishchibormi/backend/internal/notification"
 	"github.com/ishchibormi/backend/internal/upload"
 	"github.com/ishchibormi/backend/pkg/geocode"
 	"github.com/ishchibormi/backend/pkg/httpx"
@@ -28,15 +29,17 @@ type Handler struct {
 	Users        *mongo.Collection
 	Applications *mongo.Collection
 	Storage      *storage.Service
+	Notify       *notification.Service
 }
 
-func NewHandler(db *mongo.Database, s *storage.Service) *Handler {
+func NewHandler(db *mongo.Database, s *storage.Service, n *notification.Service) *Handler {
 	return &Handler{
 		Col:          db.Collection("elons"),
 		Categories:   db.Collection("categories"),
 		Users:        db.Collection("users"),
 		Applications: db.Collection("applications"),
 		Storage:      s,
+		Notify:       n,
 	}
 }
 
@@ -166,6 +169,12 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		OwnerReviewsCount: owner.ReviewsCount,
 		OwnerAvatarURL:    owner.AvatarURL,
 		Images:            req.Images,
+		// E'lonni Google Play demo hisobi yaratgan bo'lsa belgilaymiz: bunday
+		// e'lonlar feed/qidiruv/sitemap'dan chiqariladi, ya'ni real
+		// foydalanuvchi ularni hech qachon ko'rmaydi. Egasining o'z
+		// ro'yxatida ("mening e'lonlarim") ko'rinaveradi, shuning uchun
+		// reviewer to'liq oqimni sinay oladi.
+		IsReviewData: httpx.IsReviewActor(r.Context()),
 	}
 	res, err := h.Col.InsertOne(r.Context(), e)
 	if err != nil {
@@ -309,6 +318,62 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, 200, map[string]bool{"ok": true})
 }
 
+// Cancel: e'lon egasi o'z e'lonini yopadi — ilovadagi "E'lonni o'chirish".
+//
+// Yozuv bazadan o'chirilmaydi (Delete dan farqi shu): `status` "cancelled"
+// bo'lgani uchun e'lon ommaviy feeddan chiqadi va yangi ariza qabul qilmaydi,
+// ammo egasining "E'lon qilingan ishlar" tarixida "Bekor qilingan" holatida
+// ko'rinib turadi. `isDeleted` ataylab tegilmaydi — aks holda egasi o'sha
+// karta ustidan e'lon tafsilotlarini ocholmay qolardi (Get uni filtrlaydi).
+func (h *Handler) Cancel(w http.ResponseWriter, r *http.Request) {
+	uid, _ := primitive.ObjectIDFromHex(httpx.UserID(r))
+	id, err := primitive.ObjectIDFromHex(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Err(w, httpx.NewError(400, "bad_id", "bad id"))
+		return
+	}
+	// Faqat hali ochiq e'lonni bekor qilish mumkin: yakunlangan ish tarixi
+	// o'zgarmasligi va e'lon ikki marta bekor qilinmasligi kerak.
+	res := h.Col.FindOneAndUpdate(r.Context(),
+		bson.M{"_id": id, "ownerId": uid, "status": bson.M{"$in": []string{"draft", "recruiting", "filled", "in_progress"}}},
+		bson.M{"$set": bson.M{"status": "cancelled", "updatedAt": time.Now()}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After))
+	var e models.Elon
+	if err := res.Decode(&e); err != nil {
+		httpx.Err(w, httpx.NewError(404, "not_found_or_forbidden", "elon not found or not yours"))
+		return
+	}
+	// Javob kutayotgan yoki qabul qilingan arizalar ochiq qolib ketmasin —
+	// ishchi bekor qilingan ishni kutib o'tirmasligi uchun ular ham yopiladi.
+	cur, cerr := h.Applications.Find(r.Context(),
+		bson.M{"elonId": id, "status": bson.M{"$in": []string{"pending", "accepted"}}})
+	workers := []primitive.ObjectID{}
+	if cerr == nil {
+		for cur.Next(r.Context()) {
+			var a models.Application
+			if cur.Decode(&a) == nil {
+				workers = append(workers, a.WorkerID)
+			}
+		}
+		cur.Close(r.Context())
+	}
+	_, _ = h.Applications.UpdateMany(r.Context(),
+		bson.M{"elonId": id, "status": bson.M{"$in": []string{"pending", "accepted"}}},
+		bson.M{"$set": bson.M{
+			"status":       "cancelled",
+			"cancelledBy":  "employer",
+			"cancelReason": "E'lon bekor qilindi",
+			"decidedAt":    time.Now(),
+		}})
+	if h.Notify != nil {
+		for _, wid := range workers {
+			h.Notify.Push(r.Context(), wid, "application_cancelled", "Ariza bekor qilindi",
+				e.Title+" — e'lon bekor qilindi", &models.RelatedEntity{Type: "elon", ID: id})
+		}
+	}
+	httpx.JSON(w, 200, e)
+}
+
 // Feed: public listing for recruiting only (paged). Ish o'rinlari to'lgan
 // (filled) e'lonlar ro'yxatda ko'rinmaydi.
 func (h *Handler) Feed(w http.ResponseWriter, r *http.Request) {
@@ -328,6 +393,15 @@ func (h *Handler) Feed(w http.ResponseWriter, r *http.Request) {
 		page = 1
 	}
 	filter := bson.M{"isDeleted": bson.M{"$ne": true}, "status": "recruiting"}
+	// Google Play demo hisobi yaratgan e'lonlar ommaviy feedga hech qachon
+	// tushmaydi. $ne true — maydon umuman yo'q bo'lgan (ya'ni barcha real)
+	// yozuvlarni ham qamrab oladi.
+	//
+	// Demo hisobning o'ziga esa ular ko'rinadi: reviewer e'lon joylagandan
+	// keyin uni feedda topa olmasa, ilova buzuq deb o'ylashi mumkin edi.
+	if !httpx.IsReviewActor(r.Context()) {
+		filter["isReviewData"] = bson.M{"$ne": true}
+	}
 	// Vaqti o'tgan e'lonlarni feeddan yashiramiz: belgilangan boshlanish
 	// vaqtidan (kun + soat) feedExpiryGrace dan ko'p o'tgan bo'lsa — ro'yxatda
 	// ko'rinmaydi (kechagi/eski e'lonlar va bugun bo'lib o'tganlari ham).
@@ -446,7 +520,13 @@ func (h *Handler) Sitemap(w http.ResponseWriter, r *http.Request) {
 		page = 1
 	}
 
-	filter := bson.M{"isDeleted": bson.M{"$ne": true}, "status": "recruiting"}
+	// Demo e'lonlar sitemap'ga ham tushmaydi — aks holda ular Google'ga
+	// indekslanish uchun berilgan bo'lardi.
+	filter := bson.M{
+		"isDeleted":    bson.M{"$ne": true},
+		"isReviewData": bson.M{"$ne": true},
+		"status":       "recruiting",
+	}
 	filter["$expr"] = notExpiredExpr(time.Now(), feedExpiryGrace)
 
 	// Barqaror tartib (_id) + proyeksiya — sahifalash to'g'ri ishlashi va

@@ -94,7 +94,7 @@ func main() {
 	userH := user.NewHandler(mdb, s3svc)
 	accountH := account.NewHandler(cfg, mdb, s3svc)
 	catH := category.NewHandler(mdb)
-	elonH := elon.NewHandler(mdb, s3svc)
+	elonH := elon.NewHandler(mdb, s3svc, notif)
 	appH := application.NewHandler(mdb, notif)
 	repH := report.NewHandler(mdb)
 	fbH := feedback.NewHandler(mdb)
@@ -107,6 +107,13 @@ func main() {
 	// o'tgach (agar ikki tomon ham bekor qilmagan bo'lsa) avtomatik yakunlab,
 	// ish tarixiga (arxivga) o'tkazadi. ctx bekor qilinganda to'xtaydi.
 	go appH.RunAutoCompleteScheduler(ctx)
+	// Background sweeper: permanently erases accounts whose retention window
+	// (ACCOUNT_RETENTION_DAYS, default 90) has closed — the second stage of
+	// account deletion required by Google Play. Covers both self-service and
+	// admin deletions; see internal/account/retention.go. Stops on ctx cancel.
+	purger := account.NewPurger(mdb, s3svc, cfg.AccountRetentionDays, log)
+	go purger.Run(ctx)
+	log.Info("account retention active", "days", purger.RetentionDays())
 
 	// Rate limiting keys off the real client IP. Only trust forwarding headers
 	// when explicitly configured to sit behind a trusted proxy; otherwise XFF is
@@ -165,10 +172,21 @@ func main() {
 		})
 		r.Post("/auth/refresh", authH.Refresh)
 
-		// Public listing
-		r.Get("/elons", elonH.Feed)
+		// Public listing. OptionalUserAuth doesn't gate anything — it only lets
+		// the feed recognise the Play review account, so a reviewer sees the
+		// elon they just posted instead of it silently vanishing. Anonymous
+		// visitors are unaffected. The review id is passed only while a window
+		// is actually open.
+		reviewUserID := ""
+		if cfg.ReviewLoginEnabled {
+			reviewUserID = cfg.ReviewLoginUserID
+		}
+		r.Group(func(r chi.Router) {
+			r.Use(httpx.OptionalUserAuth(cfg.JWTAccessSecret, reviewUserID))
+			r.Get("/elons", elonH.Feed)
+			r.Get("/elons/{id}", elonH.Get)
+		})
 		r.Get("/elons/sitemap", elonH.Sitemap) // XML sitemap uchun yengil ro'yxat
-		r.Get("/elons/{id}", elonH.Get)
 		r.Get("/users/{id}", userH.GetPublic)
 		r.Get("/users", userH.Search)
 		r.Get("/categories", catH.List)
@@ -188,12 +206,13 @@ func main() {
 			// slows a distributed grind).
 			r.Group(func(r chi.Router) {
 				r.Use(deleteLimiter.Middleware("acct-delete"))
+				r.Use(auth.DenyReviewAccount)
 				r.Post("/me/delete/request", accountH.RequestDelete)
 				r.Post("/me/delete/confirm", accountH.ConfirmDelete)
 			})
 
-			r.Post("/users/{id}/block", userH.Block)
-			r.Delete("/users/{id}/block", userH.Unblock)
+			r.With(auth.DenyReviewAccount).Post("/users/{id}/block", userH.Block)
+			r.With(auth.DenyReviewAccount).Delete("/users/{id}/block", userH.Unblock)
 
 			// Turkumlarni faqat tizim/admin belgilaydi — oddiy foydalanuvchi
 			// yangi turkum qo'sha olmaydi (turkumlar oldindan beriladi).
@@ -201,6 +220,7 @@ func main() {
 			r.Post("/elons", elonH.Create)
 			r.Patch("/elons/{id}", elonH.Update)
 			r.Delete("/elons/{id}", elonH.Delete)
+			r.Post("/elons/{id}/cancel", elonH.Cancel)
 			r.Get("/my/elons", elonH.MyElons)
 
 			r.Group(func(r chi.Router) {
@@ -220,15 +240,17 @@ func main() {
 			r.Post("/notifications/read-all", notif.ReadAll)
 			r.Post("/notifications/read", notif.Read)
 
-			r.Post("/reports", repH.Create)
+			// Shikoyat admin moderatsiya navbatiga tushadi — demo hisob real
+			// odam haqida shikoyat yubora olmasligi kerak.
+			r.With(auth.DenyReviewAccount).Post("/reports", repH.Create)
 
-			// Taklif va shikoyatlar
-			r.Post("/feedback", fbH.Create)
+			// Taklif va shikoyatlar (support Telegram botiga uzatiladi)
+			r.With(auth.DenyReviewAccount).Post("/feedback", fbH.Create)
 			r.Get("/feedback", fbH.Mine)
 
-			// Uploads
-			r.Post("/uploads", uploadH.Upload)
-			r.Delete("/uploads", uploadH.Delete)
+			// Uploads — demo hisob ommaviy CDN'ga fayl yuklay olmaydi.
+			r.With(auth.DenyReviewAccount).Post("/uploads", uploadH.Upload)
+			r.With(auth.DenyReviewAccount).Delete("/uploads", uploadH.Delete)
 		})
 
 		// Admin
@@ -295,6 +317,17 @@ func main() {
 			})
 		})
 	})
+
+	// Google Play review login state. Logged on every boot so an open review
+	// window is never a silent condition — if this says ACTIVE outside an
+	// actual submission, someone has left the switch on and it must be closed.
+	// Intentionally log-only: no HTTP endpoint reports this, because
+	// advertising an open window is an invitation to start guessing the code.
+	if status := authH.ReviewLoginStatus(); status == "disabled" {
+		log.Info("play review login", "state", status)
+	} else {
+		log.Warn("play review login IS NOT DISABLED", "state", status)
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

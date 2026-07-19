@@ -63,6 +63,14 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, httpx.NewError(400, "self_apply", "cannot apply to own elon"))
 		return
 	}
+	// Demo e'lonlar feedda ko'rinmaydi, lekin havolasi qo'lga tushsa ham real
+	// foydalanuvchi ularga ariza bera olmasligi kerak — aks holda u demo
+	// hisob bilan aloqaga kirishib qolardi. Xato oddiy "topilmadi": demo
+	// e'lonlar borligi tashqaridan bilinmasligi kerak.
+	if elon.IsReviewData && !httpx.IsReviewActor(r.Context()) {
+		httpx.Err(w, httpx.NewError(404, "not_found", "elon not found"))
+		return
+	}
 	if elon.Status != "recruiting" {
 		// Ish o'rinlari to'lgan bo'lsa aniqroq xabar — sahifa eskirib qolib e'lon
 		// hali ko'rinib turgan bo'lsa ham ishchi joy to'lganini biladi.
@@ -129,6 +137,12 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 		OwnerName:        elon.OwnerName,
 		OwnerRating:      elon.OwnerRating,
 		OwnerAvatarURL:   elon.OwnerAvatarURL,
+		// Google Play demo hisobining arizasi bo'lsa belgilaymiz. Bunday ariza
+		// ish beruvchining nomzodlar ro'yxatiga tushmaydi va unga bildirishnoma
+		// yuborilmaydi (notification.Push'ga qarang), lekin reviewer uni o'z
+		// "arizalarim" ro'yxatida ko'radi — ya'ni oqim to'liq sinaladi, real
+		// ish beruvchi esa hech narsani sezmaydi.
+		IsReviewData: httpx.IsReviewActor(r.Context()),
 	}
 	if worker != nil {
 		// Worker snapshot (ish beruvchining nomzodlar ro'yxati uchun).
@@ -166,6 +180,9 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 					"workerReviewsCount": app.WorkerReviewsCount, "workerAvatarUrl": app.WorkerAvatarURL,
 					"workerVerified":        app.WorkerVerified,
 					"employerConfirmedDone": false, "workerConfirmedDone": false,
+					// Qayta faollashtirishda ham belgini tiklaymiz, aks holda
+					// eski yozuv sandbox'dan chiqib ketishi mumkin.
+					"isReviewData": app.IsReviewData,
 				},
 				"$unset": bson.M{"decidedAt": "", "cancelledBy": "", "cancelReason": "", "completedAt": ""},
 			},
@@ -472,7 +489,14 @@ func (h *Handler) MyApplications(w http.ResponseWriter, r *http.Request) {
 // MyElonsApplications: applications received on my elons (grouped by elon).
 func (h *Handler) MyElonsApplications(w http.ResponseWriter, r *http.Request) {
 	uid, _ := primitive.ObjectIDFromHex(httpx.UserID(r))
-	cur, err := h.Apps.Find(r.Context(), bson.M{"employerId": uid}, options.Find().SetSort(bson.D{{Key: "appliedAt", Value: -1}}))
+	// Ish beruvchi Google Play demo hisobidan kelgan arizani ko'rmaydi. Demo
+	// hisob esa (o'zi ish beruvchi bo'lganda) ularni ko'radi, shuning uchun
+	// reviewer nomzodlar ro'yxati oqimini ham sinay oladi.
+	filter := bson.M{"employerId": uid}
+	if !httpx.IsReviewActor(r.Context()) {
+		filter["isReviewData"] = bson.M{"$ne": true}
+	}
+	cur, err := h.Apps.Find(r.Context(), filter, options.Find().SetSort(bson.D{{Key: "appliedAt", Value: -1}}))
 	if err != nil {
 		httpx.Err(w, err)
 		return

@@ -19,17 +19,37 @@ type Pusher interface {
 }
 
 type Service struct {
-	Col    *mongo.Collection
+	Col *mongo.Collection
+	// Users backs the review-sandbox check in Push. Optional: when nil, Push
+	// simply drops anything the review account would have triggered.
+	Users  *mongo.Collection
 	Pusher Pusher
 }
 
 func New(db *mongo.Database) *Service {
-	return &Service{Col: db.Collection("notifications")}
+	return &Service{
+		Col:   db.Collection("notifications"),
+		Users: db.Collection("users"),
+	}
 }
 
 func (s *Service) AttachPusher(p Pusher) { s.Pusher = p }
 
 func (s *Service) Push(ctx context.Context, userID primitive.ObjectID, typ, title, body string, rel *models.RelatedEntity) {
+	// Sandbox choke point for the Google Play review account.
+	//
+	// Every notification in the app funnels through here, so this single check
+	// is what guarantees requirement "a real user must never notice that a
+	// review account exists": whatever the reviewer does — applying to a real
+	// elon, accepting, cancelling — nothing is ever delivered to a real person.
+	// Traffic between the review account and its seeded demo counterparties
+	// still flows, so the reviewer sees notifications working.
+	//
+	// Fails closed: if the recipient cannot be resolved, the notification is
+	// dropped rather than delivered.
+	if httpx.IsReviewActor(ctx) && !s.recipientIsReviewAccount(ctx, userID) {
+		return
+	}
 	n := models.Notification{
 		UserID: userID, Type: typ, Title: title, Body: body,
 		RelatedEntity: rel, IsRead: false, CreatedAt: time.Now(),
@@ -43,6 +63,21 @@ func (s *Service) Push(ctx context.Context, userID primitive.ObjectID, typ, titl
 	if s.Pusher != nil {
 		s.Pusher.PushUser(userID, "notification", n)
 	}
+}
+
+// recipientIsReviewAccount reports whether a notification target is part of the
+// review sandbox. Only consulted for review-actor traffic, so it adds no query
+// to the normal path.
+func (s *Service) recipientIsReviewAccount(ctx context.Context, userID primitive.ObjectID) bool {
+	if s.Users == nil {
+		return false
+	}
+	var u models.User
+	err := s.Users.FindOne(ctx,
+		bson.M{"_id": userID},
+		options.FindOne().SetProjection(bson.M{"isReviewAccount": 1}),
+	).Decode(&u)
+	return err == nil && u.IsReviewAccount
 }
 
 func (s *Service) List(w http.ResponseWriter, r *http.Request) {

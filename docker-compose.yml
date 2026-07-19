@@ -36,11 +36,22 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-https://ishchibormi.uz}
       APP_ENV: ${APP_ENV:-production}
       OTP_DEV_RETURN: ${OTP_DEV_RETURN:-false}
+      # Google Play review login — .env yo'q bo'lsa HAR DOIM o'chiq.
+      # Yoqish faqat ataylab qilingan amal bo'lishi kerak; batafsil izoh
+      # .env.example va backend/internal/auth/review.go da.
+      REVIEW_LOGIN_ENABLED: ${REVIEW_LOGIN_ENABLED:-false}
+      REVIEW_LOGIN_CODE: ${REVIEW_LOGIN_CODE:-}
+      REVIEW_LOGIN_EXPIRES_AT: ${REVIEW_LOGIN_EXPIRES_AT:-}
+      REVIEW_LOGIN_USER_ID: ${REVIEW_LOGIN_USER_ID:-}
       # Prod EC2'da backend reverse-proxy (TLS) ortida ishlaydi, shuning uchun
       # standart "true": klient IP X-Forwarded-For'dan olinadi (rate-limit
       # har bir foydalanuvchi bo'yicha to'g'ri ishlashi uchun). .env buni
       # override qila oladi (masalan proksisiz sinovda "false").
       TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-true}
+      # O'chirilgan hisoblar shuncha kundan keyin butunlay yo'q qilinadi.
+      # Foydalanuvchiga /delete-account va /maxfiylik-siyosati sahifalarida
+      # aytiladigan muddat bilan bir xil bo'lishi SHART (frontend/lib/retention.ts).
+      ACCOUNT_RETENTION_DAYS: ${ACCOUNT_RETENTION_DAYS:-90}
     volumes:
       - avatars:/data/avatars
       - uploads:/app/data/uploads

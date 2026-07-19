@@ -18,6 +18,10 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 		{"users", mongo.IndexModel{Keys: bson.D{{Key: "telegramId", Value: 1}}, Options: options.Index().SetUnique(true).SetSparse(true)}},
 		{"users", mongo.IndexModel{Keys: bson.D{{Key: "phone", Value: 1}}, Options: options.Index().SetUnique(true).SetSparse(true)}},
 		{"users", mongo.IndexModel{Keys: bson.D{{Key: "firstName", Value: 1}, {Key: "lastName", Value: 1}}}},
+		// Retention sweep (internal/account.Purger) scans for soft-deleted
+		// accounts past their grace period every 6h. Without this it is a full
+		// collection scan over every user on the platform.
+		{"users", mongo.IndexModel{Keys: bson.D{{Key: "isDeleted", Value: 1}, {Key: "deletedAt", Value: 1}}}},
 
 		{"elons", mongo.IndexModel{Keys: bson.D{{Key: "status", Value: 1}, {Key: "publishedAt", Value: -1}}}},
 		{"elons", mongo.IndexModel{Keys: bson.D{{Key: "ownerId", Value: 1}, {Key: "status", Value: 1}}}},

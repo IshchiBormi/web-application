@@ -123,6 +123,28 @@ func (r *OTPRepo) VerifyByPhone(ctx context.Context, phone, code string) (string
 	return doc.Phone, doc.TelegramID, nil
 }
 
+// HasLiveBoundCode reports whether this token has a live OTP record that the
+// bot has already bound a phone number to — i.e. whether a real Telegram login
+// is genuinely in flight for it.
+//
+// It exists to keep ordinary users out of the review-login guess budget. A user
+// who opened the bot and then mistyped their code has a bound record here, so
+// their failure is a plain typo and never reaches the review comparison. A Play
+// reviewer (and equally anyone probing for the review code) never opens the bot
+// at all, so their token stays unbound. See Handler.tryReviewLogin.
+func (r *OTPRepo) HasLiveBoundCode(ctx context.Context, token string) bool {
+	if token == "" {
+		return false
+	}
+	n, err := r.Col.CountDocuments(ctx, bson.M{
+		"tgToken":   token,
+		"used":      false,
+		"expiresAt": bson.M{"$gt": time.Now()},
+		"phone":     bson.M{"$nin": []any{nil, ""}},
+	})
+	return err == nil && n > 0
+}
+
 // LatestForToken returns the most recent code for a given token (dev mode helper).
 func (r *OTPRepo) LatestForToken(ctx context.Context, token string) (*models.OTPCode, error) {
 	var doc models.OTPCode

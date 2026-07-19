@@ -1,27 +1,49 @@
 "use client";
 import Link from "next/link";
 import {
-  ShieldCheck, Database, Lock, Share2, UserCog, Cookie, Baby,
-  RefreshCw, Mail, Phone, Send, MapPin, FileText, AlertCircle,
-  LifeBuoy, Instagram, Youtube,
+  ShieldCheck, Database, Lock, Share2, UserCog, Baby, Smartphone,
+  RefreshCw, Mail, Phone, Send, MapPin, FileText, AlertCircle, Clock,
+  LifeBuoy, Instagram, Youtube, Trash2, HardDrive,
 } from "lucide-react";
 import { CONTACT, SOCIAL } from "@/lib/contact";
+import { RETENTION_DAYS, RETENTION_TABLE } from "@/lib/retention";
 import { ScriptToggle } from "@/components/ScriptToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { T } from "@/components/T";
 import { getAccess } from "@/lib/api";
 
+/**
+ * Maxfiylik siyosati.
+ *
+ * MUHIM QOIDA: bu sahifadagi HAR BIR gap manba kodida tasdiqlangan bo'lishi
+ * shart. Ilova/backend qilmaydigan narsani yozish — Google Play siyosatini
+ * buzish (noto'g'ri oshkor qilish). Xususan, quyidagilar ATAYLAB yo'q, chunki
+ * kodda ular yo'q:
+ *   - analitika, Firebase, Crashlytics, Google Analytics (hech qanday SDK yo'q)
+ *   - brauzer/qurilma turi, reklama identifikatorlari (yig'ilmaydi)
+ *   - kamera (ilova faqat galereyadan rasm tanlaydi — pickMultiImage)
+ *   - chat/xabarlar va moliyaviy hisobotlar (backend'da bunday endpoint yo'q)
+ *   - sharhlar va baholar (kodda hech qachon yozilmaydi)
+ *   - foydalanuvchi paroli (kirish faqat Telegram OTP orqali; parol umuman yo'q)
+ * Muddatlar `lib/retention.ts` dan olinadi — u backend qiymatlariga bog'langan.
+ */
+
 const SECTIONS = [
-  { id: "intro",     label: "Kirish",                       icon: FileText },
-  { id: "collect",   label: "Qaysi ma'lumotlarni yig'amiz", icon: Database },
-  { id: "use",       label: "Ma'lumotlardan foydalanish",   icon: UserCog },
-  { id: "share",     label: "Uchinchi shaxslar bilan",      icon: Share2 },
-  { id: "security",  label: "Xavfsizlik",                   icon: Lock },
-  { id: "rights",    label: "Sizning huquqlaringiz",        icon: ShieldCheck },
-  { id: "cookies",   label: "Cookie va texnologiyalar",     icon: Cookie },
-  { id: "children",  label: "Bolalar maxfiyligi",           icon: Baby },
-  { id: "changes",   label: "O'zgartirishlar",              icon: RefreshCw },
-  { id: "contact",   label: "Aloqa",                        icon: Mail },
+  { id: "intro",     label: "Kirish",                        icon: FileText },
+  { id: "collect",   label: "Qaysi ma'lumotlarni yig'amiz",  icon: Database },
+  { id: "notcollect",label: "Nimalarni yig'MAYMIZ",          icon: ShieldCheck },
+  { id: "use",       label: "Ma'lumotlardan foydalanish",    icon: UserCog },
+  { id: "permissions",label: "Ilova ruxsatlari",             icon: Smartphone },
+  { id: "location",  label: "Joylashuv va xaritalar",        icon: MapPin },
+  { id: "storage",   label: "Qurilmangizda saqlanadigan",    icon: HardDrive },
+  { id: "share",     label: "Uchinchi shaxslar",             icon: Share2 },
+  { id: "security",  label: "Xavfsizlik",                    icon: Lock },
+  { id: "retention", label: "Saqlash muddatlari",            icon: Clock },
+  { id: "delete",    label: "Hisobni o'chirish",             icon: Trash2 },
+  { id: "rights",    label: "Sizning huquqlaringiz",         icon: ShieldCheck },
+  { id: "children",  label: "Bolalar maxfiyligi",            icon: Baby },
+  { id: "changes",   label: "O'zgartirishlar",               icon: RefreshCw },
+  { id: "contact",   label: "Aloqa",                         icon: Mail },
 ];
 
 export default function PrivacyPage() {
@@ -51,9 +73,16 @@ export default function PrivacyPage() {
             <T>Maxfiylik siyosati</T>
           </h1>
           <p className="mt-2 text-sm muted max-w-2xl mx-auto">
-            <T>Ishchi Bormi sizning shaxsiy ma'lumotlaringizni qanday yig'ishi, ishlatishi va himoya qilishini batafsil tushuntiramiz.</T>
+            <T>
+              Ishchi Bormi sizning shaxsiy ma'lumotlaringizni qanday yig'ishi,
+              ishlatishi, saqlashi va o'chirishini aniq tushuntiramiz — hech
+              narsani bo'rttirmasdan.
+            </T>
           </p>
-          <p className="mt-3 text-xs muted"><T>Oxirgi yangilanish</T>: 22.06.2026</p>
+          <p className="mt-3 text-xs muted">
+            <T>Amal qiladi</T>: <T>veb-sayt</T> ishchibormi.uz · <T>Android ilovasi</T> Ishchi Bormi (uz.ishchibormi.app)
+          </p>
+          <p className="mt-1 text-xs muted"><T>Oxirgi yangilanish</T>: 19.07.2026</p>
         </div>
       </section>
 
@@ -64,7 +93,7 @@ export default function PrivacyPage() {
           <nav className="mt-3 grid gap-1">
             {SECTIONS.map(({ id, label, icon: Icon }) => (
               <a key={id} href={`#${id}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-black/5">
-                <Icon size={15} className="muted" />
+                <Icon size={15} className="muted shrink-0" />
                 <span><T>{label}</T></span>
               </a>
             ))}
@@ -74,87 +103,470 @@ export default function PrivacyPage() {
         {/* ── Content ─────────────── */}
         <article className="grid gap-4">
           <Note>
-            <T>Sizning ishonchingiz biz uchun muhim. Quyida bizning maxfiylikka oid majburiyatlarimiz keltirilgan. Iltimos, diqqat bilan o'qing.</T>
+            <T>
+              Bu hujjat Ishchi Bormi veb-sayti va Android ilovasiga birdek
+              taalluqli. Ilova Google Play orqali tarqatiladi va Flutter'da
+              yozilgan.
+            </T>
           </Note>
 
           <Sec id="intro" icon={<FileText size={18} />} title="Kirish">
             <P>
-              <T>Ushbu Maxfiylik siyosati Ishchi Bormi platformasi ("Biz", "Platforma") tomonidan foydalanuvchilarning shaxsiy ma'lumotlarini qayta ishlash tartibini belgilaydi. Platformadan foydalanish orqali siz ushbu siyosat shartlariga rozilik bildirasiz.</T>
+              <T>
+                Ushbu Maxfiylik siyosati Ishchi Bormi platformasi ("Biz",
+                "Platforma") foydalanuvchilarning shaxsiy ma'lumotlarini qanday
+                qayta ishlashini belgilaydi. Platforma — ish beruvchilar va
+                ishchilarni bog'laydigan e'lonlar maydoni. Platformadan
+                foydalanish orqali siz ushbu siyosat shartlariga rozilik
+                bildirasiz.
+              </T>
             </P>
           </Sec>
 
           <Sec id="collect" icon={<Database size={18} />} title="Qaysi ma'lumotlarni yig'amiz">
-            <P><T>Biz quyidagi shaxsiy ma'lumotlarni yig'amiz:</T></P>
+            <P><T>Faqat quyidagilarni — boshqa hech narsani:</T></P>
             <ul className="mt-2 space-y-1.5 text-sm muted list-disc pl-5">
-              <li><b className="heading"><T>Hisob ma'lumotlari</T>:</b> <T>telefon raqami, Telegram identifikatori, ism va familiya.</T></li>
-              <li><b className="heading"><T>Profil ma'lumotlari</T>:</b> <T>avatar, viloyat va tuman, qisqacha bio, ko'nikmalar.</T></li>
-              <li><b className="heading"><T>Faoliyat</T>:</b> <T>e'lonlar, arizalar, baholar, sharhlar, xabarlar va moliyaviy yozuvlar.</T></li>
-              <li><b className="heading"><T>Texnik ma'lumot</T>:</b> <T>brauzer turi, IP manzil, qurilma turi va kirish vaqti (xavfsizlik uchun).</T></li>
+              <li>
+                <b className="heading"><T>Telefon raqami</T>:</b>{" "}
+                <T>
+                  Telegram orqali ro'yxatdan o'tishda olinadi. Bu — hisobingizning
+                  asosiy identifikatori.
+                </T>
+              </li>
+              <li>
+                <b className="heading"><T>Telegram identifikatori</T>:</b>{" "}
+                <T>
+                  Kirish kodini (OTP) va hisobni o'chirish kodini yuborishimiz
+                  uchun kerak.
+                </T>
+              </li>
+              <li>
+                <b className="heading"><T>Profil ma'lumotlari</T>:</b>{" "}
+                <T>
+                  ism, familiya, viloyat va tuman, qisqacha bio, ko'nikmalar va
+                  (agar yuklasangiz) avatar rasmi. Bio, ko'nikmalar va avatar —
+                  ixtiyoriy.
+                </T>
+              </li>
+              <li>
+                <b className="heading"><T>E'lonlar</T>:</b>{" "}
+                <T>
+                  siz joylagan ish e'loni matni, turkumi, narxi, ish vaqti,
+                  kerakli ishchilar soni, aloqa telefoni va — agar xaritadan
+                  belgilasangiz — ish joyi koordinatalari.
+                </T>
+              </li>
+              <li>
+                <b className="heading"><T>Rasmlar</T>:</b>{" "}
+                <T>
+                  e'longa qo'shgan rasmlaringiz va avataringiz. Ular qurilmangiz
+                  galereyasidan tanlanadi.
+                </T>
+              </li>
+              <li>
+                <b className="heading"><T>Arizalar</T>:</b>{" "}
+                <T>
+                  qaysi e'longa ariza berganingiz, necha kishi bilan
+                  kelayotganingiz va arizaning holati.
+                </T>
+              </li>
+              <li>
+                <b className="heading"><T>Taklif, shikoyat va murojaatlar</T>:</b>{" "}
+                <T>
+                  bizga yoki boshqa foydalanuvchi ustidan yuborgan xabaringiz
+                  matni.
+                </T>
+              </li>
+              <li>
+                <b className="heading"><T>Qo'llab-quvvatlash boti orqali yuborganlaringiz</T>:</b>{" "}
+                <T>
+                  Telegram'dagi qo'llab-quvvatlash botimizga yozsangiz, biz
+                  murojaatingizni saqlaymiz — matn xabarlari, ovozli xabarlar
+                  (voice recordings) va rasmlar, hamda telefon raqamingiz,
+                  ismingiz va Telegram foydalanuvchi nomingiz (@username).
+                  Ovozli xabar va rasmlarning o'zi Telegram serverlarida qoladi;
+                  bizda faqat Telegram bergan fayl identifikatori (file ID)
+                  saqlanadi — ya'ni faylning o'zi emas, unga havola.
+                </T>
+              </li>
+              <li>
+                <b className="heading"><T>IP manzil</T>:</b>{" "}
+                <T>
+                  server so'rovlar jurnalida va so'rovlar sonini cheklash
+                  (rate limiting) uchun ishlatiladi — bu suiiste'mol va
+                  firibgarlikning oldini oladi.
+                </T>
+              </li>
+            </ul>
+          </Sec>
+
+          <Sec id="notcollect" icon={<ShieldCheck size={18} />} title="Nimalarni yig'maymiz">
+            <P>
+              <T>
+                Aniqlik uchun — quyidagilar bizda umuman yo'q, chunki ilova
+                kodida bunday funksiya mavjud emas:
+              </T>
+            </P>
+            <ul className="mt-2 space-y-1.5 text-sm muted list-disc pl-5">
+              <li><T>Hech qanday analitika yoki kuzatuv tizimi — Google Analytics, Firebase, Crashlytics va shunga o'xshashlar ishlatilmaydi.</T></li>
+              <li><T>Reklama identifikatorlari va reklama tarmoqlari yo'q. Ilovada reklama umuman ko'rsatilmaydi.</T></li>
+              <li><T>Qurilma modeli, operatsion tizim versiyasi, brauzer turi kabi qurilma "barmoq izlari" yig'ilmaydi.</T></li>
+              <li><T>Kontaktlar ro'yxati, SMS va qo'ng'iroqlar tarixiga murojaat qilinmaydi.</T></li>
+              <li><T>Kameraga murojaat qilinmaydi — rasmlar faqat galereyadan tanlanadi.</T></li>
+              <li><T>Fon rejimida (ilovadan chiqqaningizdan keyin) joylashuv kuzatilmaydi.</T></li>
+              <li><T>Parolingiz yo'q va saqlanmaydi — kirish faqat Telegram orqali yuboriladigan bir martalik kod bilan amalga oshiriladi.</T></li>
+              <li><T>To'lov ma'lumotlari (karta raqami va h.k.) qabul qilinmaydi — pul hisob-kitobi platformadan tashqarida, tomonlar o'rtasida bo'ladi.</T></li>
             </ul>
           </Sec>
 
           <Sec id="use" icon={<UserCog size={18} />} title="Ma'lumotlardan foydalanish">
-            <P><T>Yig'ilgan ma'lumotlardan quyidagi maqsadlarda foydalanamiz:</T></P>
+            <P><T>Yig'ilgan ma'lumotlar faqat quyidagilar uchun ishlatiladi:</T></P>
             <ul className="mt-2 space-y-1.5 text-sm muted list-disc pl-5">
-              <li><T>Hisobingizni yaratish va Telegram OTP orqali tasdiqlash.</T></li>
-              <li><T>Sizga mos e'lonlar va ishchilarni topishingizga yordam berish.</T></li>
-              <li><T>Bildirishnomalar yuborish (ariza qabul qilindi, yangi xabar, va h.k.).</T></li>
-              <li><T>Platforma xavfsizligini ta'minlash va firibgarlikning oldini olish.</T></li>
-              <li><T>Xizmatlarimizni doimiy ravishda yaxshilash uchun statistik tahlil.</T></li>
+              <li><T>Hisobingizni yaratish va Telegram orqali yuborilgan kod bilan tasdiqlash.</T></li>
+              <li><T>E'lonlarni ko'rsatish va sizga eng yaqin ishlarni yuqorida chiqarish.</T></li>
+              <li><T>Ish beruvchi va ishchini bog'lash — ariza va uning holati bo'yicha.</T></li>
+              <li><T>Ilova ichidagi bildirishnomalarni yuborish (arizangiz qabul qilindi, bekor qilindi va h.k.).</T></li>
+              <li><T>Shikoyatlarni ko'rib chiqish, qoidabuzarlik va firibgarlikning oldini olish.</T></li>
+              <li><T>Platformaning umumiy statistikasini (masalan, jami e'lonlar soni) administratorlar panelida ko'rish. Bu — jamlangan sonlar, shaxsni profillash emas.</T></li>
             </ul>
+          </Sec>
+
+          <Sec id="permissions" icon={<Smartphone size={18} />} title="Android ilovasi qaysi ruxsatlarni so'raydi">
+            <P>
+              <T>
+                Ilova to'rtta tizim ruxsatini e'lon qiladi va har biri aniq bir
+                funksiya uchun. Ulardan faqat joylashuv ruxsati sizdan so'raladi
+                — qolganlari "oddiy" (normal) toifadagi ruxsatlar bo'lib, alohida
+                tasdiq talab qilmaydi:
+              </T>
+            </P>
+            <ul className="mt-2 space-y-1.5 text-sm muted list-disc pl-5">
+              <li>
+                <b className="heading">INTERNET:</b>{" "}
+                <T>serverimiz bilan bog'lanish va xarita plitalarini yuklash uchun.</T>
+              </li>
+              <li>
+                <b className="heading">ACCESS_NETWORK_STATE:</b>{" "}
+                <T>
+                  internet ulanishi bor-yo'qligini bilish va uzilganda sizga
+                  ogohlantirish ko'rsatish uchun. Bu ruxsat orqali hech qanday
+                  ma'lumot yig'ilmaydi.
+                </T>
+              </li>
+              <li>
+                <b className="heading">ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION:</b>{" "}
+                <T>
+                  ish joyini xaritada belgilash va sizga eng yaqin e'lonlarni
+                  birinchi ko'rsatish uchun. Ruxsat bermasangiz ham ilova
+                  ishlaydi — e'lonlar shunchaki masofa bo'yicha tartiblanmaydi.
+                </T>
+              </li>
+            </ul>
+            <P>
+              <T>
+                Rasm tanlash uchun alohida ruxsat so'ralmaydi: e'longa rasm
+                qo'shganingizda tizimning o'z rasm tanlash oynasi ochiladi va
+                ilova faqat siz tanlagan rasmni oladi — galereyangizni ko'rib
+                chiqa olmaydi.
+              </T>
+            </P>
+            <P>
+              <T>
+                Bulardan tashqari Android kutubxonalari ilova ichki ehtiyoji
+                uchun bitta texnik ruxsat avtomatik qo'shadi
+                (DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION). U faqat ilovaning o'z
+                komponentlari o'rtasida ishlaydi, hech qanday ma'lumotga kirish
+                bermaydi va boshqa ilovalar undan foydalana olmaydi.
+              </T>
+            </P>
+          </Sec>
+
+          <Sec id="location" icon={<MapPin size={18} />} title="Joylashuv va xaritalar">
+            <P>
+              <T>
+                Joylashuvingiz faqat ilova ochiq turganda va faqat siz so'raganda
+                (xaritadan joy tanlash yoki "yaqinimdagi ishlar" tartibi uchun)
+                olinadi. Bu <b className="heading">aniq joylashuv</b> (precise
+                location, ACCESS_FINE_LOCATION) — ya'ni GPS koordinatalari.
+                Koordinatalar serverga faqat siz e'londa ish joyini
+                belgilasangiz yuboriladi — u holda ular e'lon bilan birga ochiq
+                ko'rinadi. Aks holda joylashuv qurilmangizdan chiqmaydi. Fon
+                rejimida (ilova yopiq turganda) joylashuv umuman olinmaydi.
+              </T>
+            </P>
+            <P>
+              <T>
+                Xaritalar uchun tashqi plita (tile) xizmatlaridan foydalanamiz:
+                oddiy xarita — OpenStreetMap, sun'iy yo'ldosh ko'rinishi — Esri
+                (ArcGIS World Imagery). Xarita ko'rsatilganda brauzeringiz yoki
+                ilovangiz to'g'ridan-to'g'ri o'sha xizmatlarga murojaat qiladi,
+                shu sababli ular IP manzilingizni va qaysi hududni
+                ko'rayotganingizni ko'rishi mumkin. Biz ularga ismingizni,
+                telefoningizni yoki hisob ma'lumotlaringizni yubormaymiz.
+              </T>
+            </P>
+          </Sec>
+
+          <Sec id="storage" icon={<HardDrive size={18} />} title="Qurilmangizda nima saqlanadi">
+            <P><T>Ilova quyidagilarni faqat qurilmangizning o'zida saqlaydi:</T></P>
+            <ul className="mt-2 space-y-1.5 text-sm muted list-disc pl-5">
+              <li>
+                <b className="heading">flutter_secure_storage:</b>{" "}
+                <T>
+                  kirish va yangilash tokenlari (JWT). Bular Android'ning
+                  shifrlangan xotirasida saqlanadi, shuning uchun har safar
+                  qaytadan kirishingiz shart emas.
+                </T>
+              </li>
+              <li>
+                <b className="heading">shared_preferences:</b>{" "}
+                <T>
+                  profilingizning keshlangan nusxasi (ilova tez ochilishi uchun),
+                  til va mavzu tanlovingiz, bildirishnoma sozlamalari va
+                  tanishtiruv oynasi ko'rilgani haqidagi belgi.
+                </T>
+              </li>
+              <li>
+                <b className="heading"><T>Rasm keshi</T>:</b>{" "}
+                <T>ko'rgan rasmlaringiz internetni tejash uchun vaqtincha saqlanadi.</T>
+              </li>
+              <li>
+                <b className="heading">localStorage (<T>veb-sayt</T>):</b>{" "}
+                <T>saytda kirish tokeni brauzeringizning localStorage'ida saqlanadi.</T>
+              </li>
+            </ul>
+            <P>
+              <T>
+                Ilovadan chiqqaningizda yoki hisobni o'chirganingizda tokenlar va
+                profil keshi qurilmangizdan tozalanadi (til va mavzu tanlovingiz
+                esa keyingi safar uchun qoladi). Ilovani o'chirib tashlasangiz,
+                bularning hammasi qurilmangizdan yo'qoladi. Bu ma'lumotlar
+                reklama uchun ishlatilmaydi va hech kimga uzatilmaydi.
+              </T>
+            </P>
           </Sec>
 
           <Sec id="share" icon={<Share2 size={18} />} title="Uchinchi shaxslar bilan bo'lishish">
             <P>
-              <T>Biz sizning shaxsiy ma'lumotlaringizni sotmaymiz va reklama maqsadida uchinchi shaxslarga bermaymiz. Faqat quyidagi hollarda ma'lumot oshkor qilinishi mumkin:</T>
+              <T>
+                Biz shaxsiy ma'lumotlaringizni sotmaymiz va reklama maqsadida
+                hech kimga bermaymiz. Ma'lumot faqat quyidagi hollarda va faqat
+                zaruriy doirada oshkor bo'ladi:
+              </T>
             </P>
             <ul className="mt-2 space-y-1.5 text-sm muted list-disc pl-5">
-              <li><T>Boshqa foydalanuvchilar bilan — ariza topshirganingizda telefon raqamingiz e'lon egasiga, e'lon egasining raqami arizangiz qabul qilinganda sizga ko'rsatiladi.</T></li>
-              <li><T>Qonuniy talab asosida — vakolatli davlat organlari rasmiy so'rovi bo'yicha.</T></li>
-              <li><T>Texnik xizmat ko'rsatuvchilar bilan — faqat zaruriy doirada (masalan, server xosting).</T></li>
+              <li>
+                <b className="heading"><T>Boshqa foydalanuvchilar bilan</T>:</b>{" "}
+                <T>
+                  ismingiz, viloyat/tumaningiz, bio, ko'nikmalaringiz va
+                  avataringiz ochiq profilingizda ko'rinadi. Ariza
+                  topshirganingizda telefon raqamingiz e'lon egasiga ko'rsatiladi;
+                  e'londa ko'rsatilgan aloqa raqami esa e'lonni ko'rgan
+                  foydalanuvchilarga ochiq bo'ladi.
+                </T>
+              </li>
+              <li>
+                <b className="heading">Telegram:</b>{" "}
+                <T>
+                  kirish kodi va hisobni o'chirish kodi Telegram bot orqali
+                  yuboriladi. Qo'llab-quvvatlash botimizga yozgan xabarlaringiz
+                  (matn, ovozli xabar, rasm) ham Telegram orqali o'tadi va
+                  ularning nusxasi Telegram serverlarida hamda sizning
+                  Telegram'ingizdagi suhbat tarixida qoladi. Telegram'ning o'z
+                  maxfiylik siyosati amal qiladi.
+                </T>
+              </li>
+              <li>
+                <b className="heading">OpenStreetMap, Esri:</b>{" "}
+                <T>xarita ko'rsatilganda IP manzilingiz ularga ko'rinadi (yuqoriga qarang).</T>
+              </li>
+              <li>
+                <b className="heading">Nominatim (OpenStreetMap):</b>{" "}
+                <T>
+                  e'longa xaritadan ish joyini belgilasangiz, serverimiz o'sha
+                  koordinatalarni Nominatim xizmatiga yuboradi — viloyat va
+                  tuman nomini aniqlash uchun. Faqat koordinatalar yuboriladi:
+                  ism, telefon yoki hisob ma'lumotlaringiz emas.
+                </T>
+              </li>
+              <li>
+                <b className="heading"><T>Xarita ilovalari</T> (Google Maps <T>va boshqalar</T>):</b>{" "}
+                <T>
+                  e'londagi "yo'nalish" tugmasini bosganingizda ish joyi
+                  koordinatalari qurilmangizdagi xarita ilovasiga uzatiladi. Bu
+                  faqat siz tugmani bosganingizda sodir bo'ladi va o'sha
+                  ilovaning maxfiylik siyosati amal qiladi.
+                </T>
+              </li>
+              <li>
+                <b className="heading">Amazon Web Services (AWS):</b>{" "}
+                <T>
+                  serverimiz AWS EC2'da joylashgan; yuklangan rasmlar AWS S3'da
+                  saqlanadi. Ular bizning nomimizdan, bizning ko'rsatmamiz bilan
+                  ma'lumotni saqlaydi.
+                </T>
+              </li>
+              <li>
+                <b className="heading">Google Play:</b>{" "}
+                <T>
+                  ilovani Google Play orqali o'rnatasiz. Google ilova
+                  o'rnatilishi bilan bog'liq ma'lumotni o'zi to'playdi — bunga
+                  Google'ning siyosati amal qiladi va bu ma'lumot bizga
+                  yuborilmaydi.
+                </T>
+              </li>
+              <li>
+                <b className="heading"><T>Qonuniy talab asosida</T>:</b>{" "}
+                <T>vakolatli davlat organining rasmiy so'rovi bo'yicha.</T>
+              </li>
             </ul>
           </Sec>
 
           <Sec id="security" icon={<Lock size={18} />} title="Xavfsizlik choralari">
             <P>
-              <T>Ma'lumotlaringizni himoyalash uchun zamonaviy shifrlash, autentifikatsiya (JWT), HTTPS aloqasi, parollarni bcrypt orqali xeshlash va kirish huquqlarini cheklash kabi texnologiyalardan foydalanamiz.</T>
+              <T>
+                Ilova va sayt server bilan faqat HTTPS orqali, shifrlangan
+                aloqada ishlaydi. Ma'lumotlar MongoDB ma'lumotlar bazasida
+                saqlanadi. Kirish JWT tokenlari orqali tekshiriladi va tokenlar
+                qurilmangizning shifrlangan xotirasida turadi.
+              </T>
             </P>
             <P>
-              <T>Shunga qaramay, hech bir tizim 100% xavfsiz emas. Iltimos, parol va kodlaringizni hech kim bilan baham ko'rmang.</T>
+              <T>
+                Hisobingizga kirish uchun parol yo'q — har safar Telegram'ga
+                yuboriladigan bir martalik kod ishlatiladi va u 3 daqiqadan keyin
+                kuchini yo'qotadi. Hisobni o'chirish ham alohida kod bilan
+                tasdiqlanadi, shuning uchun ochiq qolgan qurilma hisobingizni
+                o'chira olmaydi. Kodni bir necha marta xato kiritilsa, u
+                bloklanadi; so'rovlar soni IP bo'yicha cheklanadi.
+              </T>
+            </P>
+            <P>
+              <T>
+                Administrator hisoblari alohida himoyalangan: parollar bcrypt
+                bilan xeshlanadi va ikki bosqichli tasdiqlash (TOTP) mavjud.
+                Shunga qaramay, hech bir tizim 100% xavfsiz emas — sizga kelgan
+                kodlarni hech kim bilan baham ko'rmang.
+              </T>
+            </P>
+          </Sec>
+
+          <Sec id="retention" icon={<Clock size={18} />} title="Ma'lumotlar qancha saqlanadi">
+            <P>
+              <T>
+                Har bir ma'lumot turi uchun aniq muddat belgilangan va u server
+                tomonida avtomatik bajariladi:
+              </T>
+            </P>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="text-left">
+                    <th className="heading font-semibold py-2 pr-4 align-top border-b" style={{ borderColor: "var(--border)" }}>
+                      <T>Ma'lumot turi</T>
+                    </th>
+                    <th className="heading font-semibold py-2 align-top border-b" style={{ borderColor: "var(--border)" }}>
+                      <T>Qancha saqlanadi</T>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {RETENTION_TABLE.map((row) => (
+                    <tr key={row.what} className="align-top">
+                      <td className="py-2 pr-4 heading border-b" style={{ borderColor: "var(--border)" }}>
+                        <T>{row.what}</T>
+                      </td>
+                      <td className="py-2 muted border-b" style={{ borderColor: "var(--border)" }}>
+                        <T>{row.howLong}</T>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Sec>
+
+          <Sec id="delete" icon={<Trash2 size={18} />} title="Hisobni o'chirish">
+            <P>
+              <T>
+                Hisobingizni istalgan paytda o'zingiz o'chirishingiz mumkin:
+                ilovada Profil → Sozlamalar → «Hisobni o'chirish», yoki saytda
+                shu bo'limdan. Tasdiqlash uchun Telegram'ga bir martalik kod
+                yuboriladi.
+              </T>
+            </P>
+            <P>
+              <T>
+                Tasdiqlaganingizdan so'ng hisob darhol ishlamay qoladi,
+                e'lonlaringiz ro'yxatdan olinadi, faol arizalar bekor qilinadi,
+                rasmlaringiz o'chiriladi, telefon raqamingiz va Telegram
+                identifikatoringiz esa darhol bo'shatiladi. Qolgan barcha shaxsiy
+                yozuvlar
+              </T>{" "}
+              <b className="heading">{RETENTION_DAYS} <T>kundan keyin butunlay o'chiriladi</T></b>{" "}
+              <T>
+                — buni server avtomatik bajaradi. Bunga qo'llab-quvvatlash
+                botiga yozgan murojaatlaringiz ham kiradi.
+              </T>
+            </P>
+            <P>
+              <T>
+                Bitta istisno bor va uni ochiq aytamiz: qo'llab-quvvatlash botiga
+                ovozli xabar yoki rasm yuborgan bo'lsangiz, ularning o'zi
+                Telegram serverlarida saqlanadi. Biz o'z bazamizdagi yozuvni va
+                unga havolani o'chiramiz, lekin Telegram'dagi nusxasini
+                o'chirishga texnik imkoniyatimiz yo'q — Telegram bot API'sida
+                bunday amal mavjud emas. Uni Telegram'dagi suhbatni o'zingiz
+                o'chirib tashlashingiz orqali olib tashlashingiz mumkin.
+              </T>
+            </P>
+            <P>
+              <T>
+                Ilovaga kira olmasangiz ham o'chirishni so'rashingiz mumkin.
+                To'liq tartib, nima o'chishi va nima qancha saqlanishi alohida
+                sahifada batafsil yozilgan:
+              </T>{" "}
+              <Link href="/delete-account" className="underline heading">
+                <T>Hisobni o'chirish sahifasi</T>
+              </Link>.
             </P>
           </Sec>
 
           <Sec id="rights" icon={<ShieldCheck size={18} />} title="Sizning huquqlaringiz">
             <P><T>Sizda quyidagi huquqlar mavjud:</T></P>
             <ul className="mt-2 space-y-1.5 text-sm muted list-disc pl-5">
-              <li><T>Ma'lumotlaringizga kirish va ularni ko'rib chiqish.</T></li>
-              <li><T>Ma'lumotlarni tahrirlash yoki yangilash.</T></li>
-              <li><T>Hisobingizni o'chirish (Sozlamalar bo'limidan).</T></li>
-              <li><T>Bildirishnomalardan voz kechish.</T></li>
-              <li><T>Boshqa foydalanuvchini bloklash yoki shikoyat qilish.</T></li>
+              <li><T>Profilingizdagi ma'lumotlarni ko'rish va istalgan paytda tahrirlash.</T></li>
+              <li><T>E'loningizni o'chirish — u bazadan darhol va butunlay o'chadi.</T></li>
+              <li><T>Hisobingizni o'chirish (yuqoridagi bo'limga qarang).</T></li>
+              <li><T>Joylashuv ruxsatini tizim sozlamalaridan istalgan paytda qaytarib olish.</T></li>
+              <li><T>Boshqa foydalanuvchini bloklash yoki uning ustidan shikoyat qilish.</T></li>
+              <li><T>Ma'lumotlaringiz nusxasini so'rash — quyidagi manzillarga murojaat qiling, so'rovni 30 kun ichida bajaramiz.</T></li>
             </ul>
-          </Sec>
-
-          <Sec id="cookies" icon={<Cookie size={18} />} title="Cookie va shunga o'xshash texnologiyalar">
-            <P>
-              <T>Saytimiz hisobni eslab qolish va sozlamalarni saqlash uchun localStorage va sessiya tokenlaridan foydalanadi. Bu fayllar reklama maqsadida ishlatilmaydi.</T>
-            </P>
           </Sec>
 
           <Sec id="children" icon={<Baby size={18} />} title="Bolalar maxfiyligi">
             <P>
-              <T>Platforma 18 yoshdan kichik foydalanuvchilarga mo'ljallanmagan. Agar bolaning ma'lumoti tasodifan yig'ilgani aniqlansa, biz uni darhol o'chiramiz.</T>
+              <T>
+                Platforma 18 yoshdan kichik foydalanuvchilarga mo'ljallanmagan va
+                ular uchun jalb qilinmaydi. Agar bolaning ma'lumoti tasodifan
+                yig'ilgani aniqlansa, biz uni o'chiramiz.
+              </T>
             </P>
           </Sec>
 
           <Sec id="changes" icon={<RefreshCw size={18} />} title="Siyosatga o'zgartirishlar">
             <P>
-              <T>Biz vaqti-vaqti bilan ushbu siyosatni yangilab turishimiz mumkin. Muhim o'zgarishlar bo'lganda sizni bildirishnoma orqali xabardor qilamiz.</T>
+              <T>
+                Ushbu siyosat vaqti-vaqti bilan yangilanishi mumkin. Sahifaning
+                yuqorisida oxirgi yangilangan sana ko'rsatiladi. Muhim
+                o'zgarishlar bo'lganda sizni ilova ichidagi bildirishnoma orqali
+                xabardor qilamiz.
+              </T>
             </P>
           </Sec>
 
           <Sec id="contact" icon={<Mail size={18} />} title="Biz bilan bog'lanish">
-            <P><T>Savollar yoki shikoyatlar yuzasidan biz bilan quyidagi yo'llar orqali bog'lanishingiz mumkin:</T></P>
+            <P><T>Maxfiylik bo'yicha savol yoki so'rovlaringiz uchun:</T></P>
             <div className="mt-3 grid sm:grid-cols-3 gap-3 text-sm">
               <Contact icon={<Mail size={16} />} text={CONTACT.email} href={CONTACT.emailHref} />
               <Contact icon={<Phone size={16} />} text={CONTACT.phone} href={CONTACT.phoneHref} />
@@ -180,10 +592,11 @@ export default function PrivacyPage() {
           <div className="flex items-center gap-2 muted">
             <span>© 2026 Ishchi Bormi</span>
           </div>
-          <div className="flex md:justify-end gap-5 muted">
+          <div className="flex md:justify-end flex-wrap gap-5 muted">
             <Link href="/biz-haqimizda"><T>Biz haqimizda</T></Link>
             <Link href="/maxfiylik-siyosati" className="heading"><T>Maxfiylik siyosati</T></Link>
             <Link href="/foydalanish-shartlari"><T>Foydalanish shartlari</T></Link>
+            <Link href="/delete-account"><T>Hisobni o'chirish</T></Link>
             <Link href="/yordam"><T>Yordam</T></Link>
           </div>
         </div>
@@ -198,7 +611,7 @@ function Sec({ id, icon, title, children }: { id: string; icon: React.ReactNode;
   return (
     <section id={id} className="card p-6 scroll-mt-20">
       <h2 className="font-semibold heading flex items-center gap-2 text-lg">
-        <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-navy text-white">{icon}</span>
+        <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-navy text-white shrink-0">{icon}</span>
         <T>{title}</T>
       </h2>
       <div className="mt-3">{children}</div>
@@ -207,7 +620,7 @@ function Sec({ id, icon, title, children }: { id: string; icon: React.ReactNode;
 }
 
 function P({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm leading-relaxed muted">{children}</p>;
+  return <p className="text-sm leading-relaxed muted mt-2 first:mt-0">{children}</p>;
 }
 
 function Note({ children }: { children: React.ReactNode }) {

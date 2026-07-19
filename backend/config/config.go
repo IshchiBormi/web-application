@@ -49,6 +49,40 @@ type Config struct {
 	// Local-disk upload fallback (used when AWS_S3_BUCKET is empty).
 	UploadDir        string
 	UploadPublicBase string
+
+	// AccountRetentionDays — how long a deleted account is kept in its
+	// soft-deleted state before it is permanently erased (see
+	// internal/account/retention.go). Whatever this is set to must match the
+	// number stated on /delete-account and in the privacy policy.
+	AccountRetentionDays int
+
+	// ---------------------------------------------------------------------
+	// Google Play review login. See internal/auth/review.go for the whole
+	// mechanism; these four values are the only way to switch it on.
+	//
+	// It exists because the normal login is a Telegram-bot OTP, which a Play
+	// reviewer cannot complete. While enabled, ONE extra code is accepted at
+	// /auth/otp/verify and resolves to ONE pre-created, sandboxed account.
+	//
+	// Every field defaults to "off". The code is never shipped in the mobile
+	// app — it is typed by the reviewer into the normal 6-digit OTP field, so
+	// there is nothing to recover from the APK.
+	// ---------------------------------------------------------------------
+
+	// ReviewLoginEnabled is the master switch. Default false, and the deploy
+	// pipeline re-asserts false on every deploy, so it can only ever be on
+	// through a deliberate manual act.
+	ReviewLoginEnabled bool
+	// ReviewLoginCode is the code the reviewer types. Exactly OTPLength digits
+	// (it shares the app's OTP input) and must be generated with a CSPRNG.
+	ReviewLoginCode string
+	// ReviewLoginExpiresAt makes the window self-closing: once it passes, the
+	// review branch goes inert even if nobody remembers to unset the flag.
+	// Required whenever ReviewLoginEnabled is true.
+	ReviewLoginExpiresAt time.Time
+	// ReviewLoginUserID is the hex ObjectID of the pre-created review account.
+	// Login resolves this exact document — it never creates or upserts one.
+	ReviewLoginUserID string
 }
 
 func envStr(k, def string) string {
@@ -65,6 +99,21 @@ func envInt(k string, def int) int {
 	}
 	return def
 }
+// envTime parses an RFC3339 timestamp. An unset or unparseable value yields the
+// zero Time, which every caller must treat as "not configured" — never as
+// "no deadline".
+func envTime(k string) time.Time {
+	v := strings.TrimSpace(os.Getenv(k))
+	if v == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
 func envBool(k string, def bool) bool {
 	v := strings.ToLower(os.Getenv(k))
 	switch v {
@@ -111,6 +160,15 @@ func Load() Config {
 
 		UploadDir:        envStr("UPLOAD_DIR", "./data/uploads"),
 		UploadPublicBase: envStr("UPLOAD_PUBLIC_BASE", "http://localhost:8080/uploads"),
+
+		AccountRetentionDays: envInt("ACCOUNT_RETENTION_DAYS", 90),
+
+		// Defaults are the "off" state; mustValidate refuses to start in
+		// production if the switch is on but the guard rails are missing.
+		ReviewLoginEnabled:   envBool("REVIEW_LOGIN_ENABLED", false),
+		ReviewLoginCode:      strings.TrimSpace(envStr("REVIEW_LOGIN_CODE", "")),
+		ReviewLoginExpiresAt: envTime("REVIEW_LOGIN_EXPIRES_AT"),
+		ReviewLoginUserID:    strings.TrimSpace(envStr("REVIEW_LOGIN_USER_ID", "")),
 	}
 	cfg.mustValidate()
 	return cfg
@@ -122,10 +180,17 @@ func (c Config) IsProd() bool { return c.AppEnv == "production" || c.AppEnv == "
 // place. This prevents accidentally shipping forgeable JWTs, a default admin
 // password, or OTP leakage.
 func (c Config) mustValidate() {
+	// Review-login validation runs in EVERY environment, not just production:
+	// it is a security switch, and a dev/staging box is often reachable too.
+	// With the switch off (the default) none of these can fire.
+	problems := c.reviewLoginProblems()
+
 	if !c.IsProd() {
+		if len(problems) > 0 {
+			log.Fatalf("invalid review-login configuration:\n  - %s", strings.Join(problems, "\n  - "))
+		}
 		return
 	}
-	var problems []string
 	weak := map[string]bool{
 		"": true, "dev-access-secret": true, "dev-refresh-secret": true,
 		"change-me-access": true, "change-me-refresh": true,
@@ -152,4 +217,98 @@ func (c Config) mustValidate() {
 	if len(problems) > 0 {
 		log.Fatalf("insecure configuration for production:\n  - %s", strings.Join(problems, "\n  - "))
 	}
+}
+
+// MaxReviewLoginWindow caps how far ahead REVIEW_LOGIN_EXPIRES_AT may be set.
+// A Play review takes days, not months; anything longer is a standing backdoor.
+const MaxReviewLoginWindow = 30 * 24 * time.Hour
+
+// reviewLoginProblems validates the Play-review switch. It returns nothing at
+// all unless ReviewLoginEnabled is true, so the default configuration can never
+// trip it.
+//
+// Note what is deliberately NOT an error here: an expiry that has already
+// passed. Making that fatal would take production down the moment the review
+// window lapsed. Instead the gate goes inert at request time — see
+// internal/auth/review.go. Boot only refuses configurations that would open a
+// window with no way of closing itself.
+func (c Config) reviewLoginProblems() []string {
+	if !c.ReviewLoginEnabled {
+		return nil
+	}
+	var problems []string
+
+	switch {
+	case c.ReviewLoginCode == "":
+		problems = append(problems, "REVIEW_LOGIN_CODE must be set when REVIEW_LOGIN_ENABLED=true")
+	case len(c.ReviewLoginCode) != c.OTPLength:
+		// The reviewer types this into the app's normal OTP box, which accepts
+		// exactly OTPLength digits — a different length simply cannot be entered.
+		problems = append(problems, "REVIEW_LOGIN_CODE must be exactly "+strconv.Itoa(c.OTPLength)+" digits (it is typed into the app's OTP field)")
+	case !isAllDigits(c.ReviewLoginCode):
+		problems = append(problems, "REVIEW_LOGIN_CODE must contain digits only")
+	case isWeakNumericCode(c.ReviewLoginCode):
+		problems = append(problems, "REVIEW_LOGIN_CODE is trivially guessable (repeated or sequential digits) — generate it with a CSPRNG")
+	}
+
+	switch {
+	case c.ReviewLoginExpiresAt.IsZero():
+		problems = append(problems, "REVIEW_LOGIN_EXPIRES_AT must be set (RFC3339) when REVIEW_LOGIN_ENABLED=true — the window has to close by itself")
+	case time.Until(c.ReviewLoginExpiresAt) > MaxReviewLoginWindow:
+		problems = append(problems, "REVIEW_LOGIN_EXPIRES_AT is more than 30 days away — shorten it")
+	}
+
+	if !isObjectIDHex(c.ReviewLoginUserID) {
+		problems = append(problems, "REVIEW_LOGIN_USER_ID must be the 24-char hex id of the pre-created review account")
+	}
+	return problems
+}
+
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// isWeakNumericCode rejects the codes a human picks when told "make one up":
+// every digit the same (000000) or a run of consecutive digits (123456/654321).
+func isWeakNumericCode(s string) bool {
+	if len(s) < 2 {
+		return true
+	}
+	same, asc, desc := true, true, true
+	for i := 1; i < len(s); i++ {
+		if s[i] != s[0] {
+			same = false
+		}
+		if s[i] != s[i-1]+1 {
+			asc = false
+		}
+		if s[i] != s[i-1]-1 {
+			desc = false
+		}
+	}
+	return same || asc || desc
+}
+
+// isObjectIDHex reports whether s looks like a Mongo ObjectID, without pulling
+// the driver into the config package.
+func isObjectIDHex(s string) bool {
+	if len(s) != 24 {
+		return false
+	}
+	for _, r := range s {
+		switch {
+		case r >= '0' && r <= '9', r >= 'a' && r <= 'f', r >= 'A' && r <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
 }

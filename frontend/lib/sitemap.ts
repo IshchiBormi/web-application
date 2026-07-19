@@ -50,6 +50,9 @@ export const STATIC_PAGES: readonly StaticPage[] = [
   { path: "/yordam", changefreq: "monthly", priority: 0.5 },
   { path: "/foydalanish-shartlari", changefreq: "yearly", priority: 0.5 },
   { path: "/maxfiylik-siyosati", changefreq: "yearly", priority: 0.5 },
+  // Google Play talab qiladigan ochiq hisobni o'chirish sahifasi — indekslansin
+  // ki, foydalanuvchi ilovasiz ham qidiruvdan topa olsin.
+  { path: "/delete-account", changefreq: "yearly", priority: 0.5 },
 ] as const;
 
 const JOB_CHANGE_FREQUENCY: ChangeFreq = "daily";

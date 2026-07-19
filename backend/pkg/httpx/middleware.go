@@ -16,6 +16,11 @@ const (
 	CtxUserID    ctxKey = "userId"
 	CtxAdminID   ctxKey = "adminId"
 	CtxAdminRole ctxKey = "adminRole"
+	// CtxReviewActor marks a request made by the sandboxed Google Play review
+	// account. auth.RequireActiveUser sets it (it already has the user
+	// document, so this costs no extra query) and handlers consult it to keep
+	// review activity from reaching real users. Never true for a normal user.
+	CtxReviewActor ctxKey = "reviewActor"
 )
 
 // TrustProxyHeaders controls whether the X-Forwarded-For header is honored when
@@ -62,6 +67,41 @@ func UserAuth(secret string) func(http.Handler) http.Handler {
 	}
 }
 
+// OptionalUserAuth reads a Bearer token when one is present and never rejects a
+// request. Public listing routes use it so they can tailor results to the
+// caller while staying open to anonymous visitors.
+//
+// reviewUserID is the id of the Play review account, or "" when no review
+// window is open. Matching the token's subject against it identifies review
+// traffic without a database round-trip on this hot path — and it cannot be
+// forged, since producing such a token means holding a real session for that
+// account. Passing "" disables the check entirely.
+func OptionalUserAuth(secret, reviewUserID string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			tok := tokenFromReq(r)
+			if tok == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			c := &Claims{}
+			if _, err := jwt.ParseWithClaims(tok, c,
+				func(*jwt.Token) (any, error) { return []byte(secret), nil },
+				jwt.WithValidMethods(allowedJWTMethods),
+			); err != nil || c.UserID == "" {
+				// A bad token on a public route is simply an anonymous visitor.
+				next.ServeHTTP(w, r)
+				return
+			}
+			ctx := context.WithValue(r.Context(), CtxUserID, c.UserID)
+			if reviewUserID != "" && c.UserID == reviewUserID {
+				ctx = context.WithValue(ctx, CtxReviewActor, true)
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
 func AdminAuth(secret string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -101,6 +141,16 @@ func UserID(r *http.Request) string {
 		return v
 	}
 	return ""
+}
+
+// IsReviewActor reports whether this request comes from the sandboxed Play
+// review account. It defaults to false everywhere the flag was never set —
+// unauthenticated routes, background jobs, tests — so forgetting to plumb it
+// through can only ever fail towards "treat as a normal user", never towards
+// silently granting a real user review-account behaviour.
+func IsReviewActor(ctx context.Context) bool {
+	v, _ := ctx.Value(CtxReviewActor).(bool)
+	return v
 }
 func AdminID(r *http.Request) string {
 	if v, ok := r.Context().Value(CtxAdminID).(string); ok {
@@ -255,6 +305,10 @@ func (l *Limiter) evictIdle(now time.Time, idle time.Duration) {
 		}
 	}
 }
+
+// ClientIP exposes the same trusted-proxy-aware client address the rate limiter
+// buckets on, for callers that keep their own per-IP budgets.
+func ClientIP(r *http.Request) string { return clientIP(r) }
 
 func clientIP(r *http.Request) string {
 	// Only trust the forwarded header when explicitly configured to run behind a

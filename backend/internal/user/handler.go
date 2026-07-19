@@ -132,7 +132,12 @@ func (h *Handler) GetPublic(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
-	filter := bson.M{"isDeleted": bson.M{"$ne": true}}
+	// Google Play demo hisobi ommaviy qidiruvda ko'rinmaydi — real
+	// foydalanuvchi uni topib, bog'lanishga urinmasligi kerak.
+	filter := bson.M{
+		"isDeleted":       bson.M{"$ne": true},
+		"isReviewAccount": bson.M{"$ne": true},
+	}
 	if q != "" {
 		rx := primitive.Regex{Pattern: regexpEscape(q), Options: "i"}
 		filter["$or"] = []bson.M{

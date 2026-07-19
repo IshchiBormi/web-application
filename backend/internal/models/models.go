@@ -43,6 +43,15 @@ type User struct {
 	DeletedPhone      string     `bson:"deletedPhone,omitempty" json:"deletedPhone,omitempty"`
 	DeletedTelegramID int64      `bson:"deletedTelegramId,omitempty" json:"deletedTelegramId,omitempty"`
 	DeletedAt         *time.Time `bson:"deletedAt,omitempty" json:"deletedAt,omitempty"`
+
+	// IsReviewAccount marks the sandboxed Google Play review account (and the
+	// demo counterparties seeded alongside it). It gates the write restrictions
+	// in auth.DenyReviewAccount and keeps the account out of public listings,
+	// admin analytics and the retention sweep.
+	//
+	// json:"-" is deliberate: serialising it would advertise to every client
+	// that a review mode exists. Nothing outside the server ever sees it.
+	IsReviewAccount bool `bson:"isReviewAccount,omitempty" json:"-"`
 }
 
 // PublicUser is a safe projection.
@@ -129,6 +138,12 @@ type Elon struct {
 	OwnerAvatarURL    string  `bson:"ownerAvatarUrl,omitempty" json:"ownerAvatarUrl"`
 	// Image URLs (stored on S3).
 	Images []string `bson:"images,omitempty" json:"images"`
+
+	// IsReviewData marks an elon created by the review account. Such elons are
+	// filtered out of the public feed, search and sitemap, so a real user never
+	// sees one. See internal/auth/review.go. Never serialised — see
+	// User.IsReviewAccount.
+	IsReviewData bool `bson:"isReviewData,omitempty" json:"-"`
 }
 
 // Application
@@ -171,6 +186,13 @@ type Application struct {
 	AppliedAt     time.Time  `bson:"appliedAt" json:"appliedAt"`
 	DecidedAt     *time.Time `bson:"decidedAt,omitempty" json:"decidedAt,omitempty"`
 	CompletedAt   *time.Time `bson:"completedAt,omitempty" json:"completedAt,omitempty"`
+
+	// IsReviewData marks an application submitted by the review account. The
+	// employer is never notified about it and never sees it in their candidate
+	// list, so a reviewer can exercise the full apply flow against a real elon
+	// without any real user noticing. Never serialised — see
+	// User.IsReviewAccount.
+	IsReviewData bool `bson:"isReviewData,omitempty" json:"-"`
 }
 
 // Review

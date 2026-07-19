@@ -9,6 +9,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/api ./cmd/api
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/seed ./seed
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/resetadmin ./cmd/resetadmin
+RUN CGO_ENABLED=0 GOOS=linux go build -o /out/reviewaccount ./cmd/reviewaccount
 
 FROM alpine:3.19
 # Run as a non-root user. The data dirs are pre-created and chowned so the named
@@ -22,6 +23,7 @@ WORKDIR /app
 COPY --from=build /out/api /app/api
 COPY --from=build /out/seed /app/seed
 COPY --from=build /out/resetadmin /app/resetadmin
+COPY --from=build /out/reviewaccount /app/reviewaccount
 USER appuser
 EXPOSE 8080
 ENTRYPOINT ["/app/api"]

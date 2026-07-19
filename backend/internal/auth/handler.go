@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -16,18 +17,25 @@ import (
 )
 
 type Handler struct {
-	cfg   config.Config
-	otp   *OTPRepo
-	users *mongo.Collection
+	cfg    config.Config
+	otp    *OTPRepo
+	users  *mongo.Collection
+	review *reviewGate
 }
 
 func NewHandler(cfg config.Config, db *mongo.Database) *Handler {
 	return &Handler{
-		cfg:   cfg,
-		otp:   NewOTPRepo(db, cfg.OTPTTL, cfg.OTPLength),
-		users: db.Collection("users"),
+		cfg:    cfg,
+		otp:    NewOTPRepo(db, cfg.OTPTTL, cfg.OTPLength),
+		users:  db.Collection("users"),
+		review: newReviewGate(cfg),
 	}
 }
+
+// ReviewLoginStatus renders the Play-review switch for the startup banner. It
+// never contains the code. Deliberately not exposed over HTTP: telling the
+// world that a review window is open is an invitation to start guessing.
+func (h *Handler) ReviewLoginStatus() string { return h.review.describe(time.Now()) }
 
 // Users exposes the users collection for wiring auth middleware in main.
 func (h *Handler) Users() *mongo.Collection { return h.users }
@@ -99,6 +107,14 @@ func (h *Handler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		// The normal Telegram path has failed. Only now — and only while a Play
+		// review window is open — is the review code considered. With the switch
+		// off (the default) tryReviewLogin returns immediately and this endpoint
+		// behaves exactly as it did before the feature existed.
+		if ru := h.tryReviewLogin(r, req); ru != nil {
+			h.issueSession(w, ru)
+			return
+		}
 		httpx.Err(w, httpx.NewError(401, "invalid_code", "invalid or expired code"))
 		return
 	}
@@ -118,6 +134,14 @@ func (h *Handler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, err)
 		return
 	}
+	h.issueSession(w, user)
+}
+
+// issueSession mints the access/refresh pair and writes the login response.
+// Both the Telegram path and the review path go through here, so a review
+// session is an ordinary user session in every respect — same claims, same
+// secrets, same TTLs, no extra privilege of any kind.
+func (h *Handler) issueSession(w http.ResponseWriter, user *models.User) {
 	access, err := httpx.IssueUserToken(h.cfg.JWTAccessSecret, user.ID.Hex(), h.cfg.JWTAccessTTL)
 	if err != nil {
 		httpx.Err(w, err)
@@ -129,6 +153,58 @@ func (h *Handler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, 200, verifyResp{AccessToken: access, RefreshToken: refresh, User: *user})
+}
+
+// tryReviewLogin resolves the Google Play review account when the submitted
+// code is the review code and a review window is open. It returns nil for every
+// other case, including the overwhelmingly common one of the switch being off.
+//
+// Order matters here, and each step is a guard rather than a convenience:
+//
+//  1. Gate inactive (default) → return immediately. Nothing below runs, and the
+//     caller falls through to the same 401 it always returned.
+//  2. Token already has a phone bound by the bot → a real user mistyped their
+//     real OTP. Return without comparing or charging anything, so ordinary
+//     traffic can never exhaust the reviewer's budget.
+//  3. This IP is out of guesses → refuse without comparing.
+//  4. Constant-time compare; a miss costs one guess.
+//  5. Resolve the configured account by _id. Never upsert, never create. Fail
+//     closed unless it exists, is flagged as a review account, and is neither
+//     blocked nor deleted — which is what makes blocking that one document an
+//     instant, total revocation.
+func (h *Handler) tryReviewLogin(r *http.Request, req verifyReq) *models.User {
+	now := time.Now()
+	if !h.review.active(now) {
+		return nil
+	}
+	ctx := r.Context()
+	if h.otp.HasLiveBoundCode(ctx, req.Token) {
+		return nil
+	}
+	ip := httpx.ClientIP(r)
+	if h.review.budgetExhausted(ip, now) {
+		log.Printf("review-login: guess budget exhausted, refusing ip=%s", ip)
+		return nil
+	}
+	if !h.review.matches(req.Code) {
+		h.review.recordFailure(ip, now)
+		log.Printf("review-login: wrong code from ip=%s", ip)
+		return nil
+	}
+
+	var u models.User
+	if err := h.users.FindOne(ctx, bson.M{"_id": h.review.userID}).Decode(&u); err != nil {
+		log.Printf("review-login: correct code but account %s does not exist — refusing", h.review.userID.Hex())
+		return nil
+	}
+	if !u.IsReviewAccount || u.IsBlocked || u.IsDeleted {
+		log.Printf("review-login: correct code but account %s is not an active review account "+
+			"(isReviewAccount=%t blocked=%t deleted=%t) — refusing",
+			u.ID.Hex(), u.IsReviewAccount, u.IsBlocked, u.IsDeleted)
+		return nil
+	}
+	log.Printf("review-login: SUCCESS account=%s ip=%s ua=%q", u.ID.Hex(), ip, r.UserAgent())
+	return &u
 }
 
 // errAccountBlocked is returned by upsertUser when the account behind a verified
@@ -295,9 +371,45 @@ func RequireActiveUser(users *mongo.Collection) func(http.Handler) http.Handler 
 				httpx.Err(w, httpx.NewError(403, "account_disabled", "account is blocked or deleted"))
 				return
 			}
+			// The user document is already loaded here, so tagging the request
+			// as review traffic is free. Downstream handlers use it to keep the
+			// review account's activity inside its sandbox.
+			if u.IsReviewAccount {
+				r = r.WithContext(context.WithValue(r.Context(), httpx.CtxReviewActor, true))
+			}
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// DenyReviewAccount blocks routes the sandboxed Play review account has no
+// business calling. Everything a reviewer must actually exercise to assess the
+// app — posting a job, applying to one, editing their profile, browsing,
+// notifications — stays open; this covers only the actions that would either
+// touch a real person or leave real-world residue:
+//
+//	POST/DELETE /uploads          arbitrary files on our public CDN
+//	POST /me/delete/request|confirm  would destroy the review account mid-review
+//	POST /reports                 lands in the admins' moderation queue
+//	POST /feedback                relays to the support Telegram bot
+//	POST/DELETE /users/{id}/block affects a real user's visibility
+//
+// Note there is no route to change a phone number: updateMeReq has no phone
+// field, so that is already impossible for every account, review or not.
+//
+// It reads the flag RequireActiveUser set, so it must be mounted after it.
+func DenyReviewAccount(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if httpx.IsReviewActor(r.Context()) {
+			// 403 with a neutral message. A real user can never see this, and
+			// it tells a reviewer plainly that the demo account is limited
+			// rather than that the app is broken.
+			httpx.Err(w, httpx.NewError(403, "not_available",
+				"This action is not available on the demo account."))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Used by /api/me to expand the current user object.
