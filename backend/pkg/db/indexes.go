@@ -62,13 +62,6 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 		// ro'yxatni createdAt bo'yicha teskari sortda oladi.
 		{"feedback", mongo.IndexModel{Keys: bson.D{{Key: "userId", Value: 1}, {Key: "createdAt", Value: -1}}}},
 		{"feedback", mongo.IndexModel{Keys: bson.D{{Key: "createdAt", Value: -1}}}},
-
-		// Telegram feedback-botlari (bot moduli ham shu bazani ishlatadi, lekin
-		// indekslarni faqat backend boot'i yaratadi): ochiq murojaatlar navbati
-		// status+createdAt bo'yicha o'qiladi; admin ro'yxatga chatId bilan
-		// upsert qilinadi — dublikat admin yozuvi bo'lmasin.
-		{"bot_feedback", mongo.IndexModel{Keys: bson.D{{Key: "status", Value: 1}, {Key: "createdAt", Value: 1}}}},
-		{"support_admins", mongo.IndexModel{Keys: bson.D{{Key: "chatId", Value: 1}}, Options: options.Index().SetUnique(true)}},
 	}
 	for _, s := range specs {
 		if _, err := db.Collection(s.coll).Indexes().CreateOne(ctx, s.idx); err != nil {

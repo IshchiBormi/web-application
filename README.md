@@ -29,9 +29,8 @@ Tailwind) veb-panel va OTP/murojaat uchun Go Telegram botlari.
 │   ├── internal/         # domenlar (har biri handler.go)
 │   ├── pkg/              # umumiy yordamchi paketlar
 │   └── seed/main.go      # demo ma'lumot to'ldirish
-├── bot/                  # Go Telegram botlar
+├── bot/                  # Go Telegram bot
 │   ├── cmd/bot/          # OTP yetkazuvchi bot
-│   ├── cmd/feedbackbot/  # taklif/shikoyat + admin javob boti
 │   └── internal/envfile/ # .env yuklovchi
 ├── frontend/             # Next.js veb-panel
 │   ├── app/             # sahifalar (App Router)
@@ -39,7 +38,7 @@ Tailwind) veb-panel va OTP/murojaat uchun Go Telegram botlari.
 │   └── lib/             # API klient, i18n, format, xarita
 ├── design/               # dizayn skrinshotlari (namuna)
 ├── .github/workflows/    # CI/CD pipeline (test + AWS deploy)
-├── docker-compose.yml    # mongo + backend + bot + feedbackbot + frontend
+├── docker-compose.yml    # mongo + backend + bot + frontend
 ├── Makefile
 ├── .env.example
 └── README.md
@@ -167,13 +166,11 @@ Bazaviy prefiks: `/api`. Autentifikatsiya: `Authorization: Bearer <accessToken>`
   orqali `/start` bosadi, kontaktini ulashadi. Bot 6 xonali kodni yaratib
   Mongo'ning OTP kolleksiyasiga (TTL) yozadi; shu kod bilan
   `/api/auth/otp/verify` orqali kirish yakunlanadi.
-- **`cmd/feedbackbot/main.go` (2 bot bitta jarayonda)**:
-  1. *Foydalanuvchi boti* (`FEEDBACK_BOT_TOKEN`) — "Taklif"/"Shikoyat" tanlab
-     matn/ovoz/rasm yuboradi; tasdiq avtomatik keladi.
-  2. *Admin boti* (`SUPPORT_BOT_TOKEN`) — murojaatlar shu botga tushadi, admin
-     "Javob berish" orqali javob yozadi. `SUPPORT_ADMIN_PHONE` tasdiqlangach
-     ochiladi. Kolleksiyalar: `bot_feedback`, `support_admins`.
 - **`bot/internal/envfile/`** — `.env` yuklovchi.
+
+> Eslatma: qo'llab-quvvatlash endi shaxsiy Telegram akkaunti orqali — avvalgi
+> taklif/shikoyat botlari (`cmd/feedbackbot`, `bot_feedback`/`support_admins`
+> kolleksiyalari) 2026-07-23 da butunlay olib tashlandi.
 
 ---
 
@@ -220,7 +217,7 @@ docker compose exec backend /app/seed   # demo ma'lumot
 | frontend | 3000 |
 | backend | 8080 |
 | mongo | 27018 → 27017 |
-| bot / feedbackbot | (tashqi port yo'q) |
+| bot | (tashqi port yo'q) |
 
 ### Kirish oqimi
 `/login` → "Telegram botga o'tish" → botda `/start` + kontakt → 6 xonali kod →

@@ -6,13 +6,11 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/bot ./cmd/bot
-RUN CGO_ENABLED=0 GOOS=linux go build -o /out/feedbackbot ./cmd/feedbackbot
 
 FROM alpine:3.19
 RUN apk add --no-cache ca-certificates \
  && adduser -D -u 10001 appuser
 WORKDIR /app
 COPY --from=build /out/bot /app/bot
-COPY --from=build /out/feedbackbot /app/feedbackbot
 USER appuser
 ENTRYPOINT ["/app/bot"]

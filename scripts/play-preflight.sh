@@ -57,10 +57,7 @@ aniq joylashuv|aniq joylashuv (precise location)
 ACCESS_FINE_LOCATION|ACCESS_FINE_LOCATION ruxsati
 Nominatim|Nominatim uzatmasi
 OpenStreetMap|OpenStreetMap
-ovozli|ovozli xabar (voice recordings)
-file ID|fayl identifikatori (file ID)
-username|Telegram username
-llab-quvvatlash|qo'llab-quvvatlash boti
+llab-quvvatlash|qo'llab-quvvatlash (Telegram)
 Crashlytics|Crashlytics oshkorasi (Firebase ulangan!)
 Cloud Messaging|FCM push oshkorasi
 POST_NOTIFICATIONS|POST_NOTIFICATIONS ruxsati

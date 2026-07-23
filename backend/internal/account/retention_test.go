@@ -62,30 +62,6 @@ func seedDeleted(t *testing.T, db *mongo.Database, ageDays int) (primitive.Objec
 	must("delete_code", err)
 	_, err = db.Collection("otp_codes").InsertOne(ctx, bson.M{"phone": "+998900000009", "code": "1234"})
 	must("otp", err)
-	// Support-bot conversations: one of each content type the bot accepts, so a
-	// regression that only handles text still fails. Written before deletedAt,
-	// i.e. while the account was alive.
-	_, err = db.Collection("bot_feedback").InsertMany(ctx, []any{
-		bson.M{
-			"telegramId": int64(555), "chatId": int64(555), "phone": "+998900000009",
-			"name": "Deleted User", "username": "deleteduser", "type": "complaint",
-			"contentType": "text", "text": "shikoyat", "status": "open",
-			"createdAt": deletedAt.Add(-48 * time.Hour),
-		},
-		bson.M{
-			"telegramId": int64(555), "chatId": int64(555), "phone": "+998900000009",
-			"name": "Deleted User", "type": "suggestion", "contentType": "voice",
-			"fileID": "AwACAgIAAx0", "status": "open",
-			"createdAt": deletedAt.Add(-24 * time.Hour),
-		},
-		bson.M{
-			"telegramId": int64(555), "chatId": int64(555), "phone": "+998900000009",
-			"name": "Deleted User", "type": "complaint", "contentType": "photo",
-			"fileID": "AgACAgIAAx0", "status": "answered", "adminReply": "javob",
-			"createdAt": deletedAt.Add(-1 * time.Hour),
-		},
-	})
-	must("bot_feedback", err)
 	return uid, elonID
 }
 
@@ -113,9 +89,6 @@ func countAll(t *testing.T, db *mongo.Database, uid, elonID primitive.ObjectID) 
 	}})
 	check("delete_codes", bson.M{"userId": uid})
 	check("otp_codes", bson.M{"phone": "+998900000009"})
-	check("bot_feedback", bson.M{"$or": []bson.M{
-		{"telegramId": int64(555)}, {"phone": "+998900000009"},
-	}})
 	return got
 }
 
@@ -172,37 +145,6 @@ func TestPurgeSparesAccountsInsideWindow(t *testing.T) {
 		if n == 0 {
 			t.Errorf("%s: records erased before the retention window closed", coll)
 		}
-	}
-}
-
-// A released phone number can be re-registered, and the returning person is a
-// different account. Purging the OLD account must not reach forward and delete
-// the NEW one's support-bot messages, even though both share phone + Telegram id.
-func TestPurgeSparesBotFeedbackWrittenAfterDeletion(t *testing.T) {
-	db := testDB(t)
-	ctx := context.Background()
-	seedDeleted(t, db, 91)
-
-	// Same identity, but sent to the support bot yesterday — long after the old
-	// account was deleted, so it belongs to the re-registered account.
-	if _, err := db.Collection("bot_feedback").InsertOne(ctx, bson.M{
-		"telegramId": int64(555), "phone": "+998900000009",
-		"name": "Returning User", "type": "suggestion", "contentType": "text",
-		"text": "yangi hisobdan xabar", "status": "open",
-		"createdAt": time.Now().AddDate(0, 0, -1),
-	}); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-
-	NewPurger(db, nil, DefaultRetentionDays, quietLog()).PurgeDue(ctx)
-
-	n, err := db.Collection("bot_feedback").CountDocuments(ctx,
-		bson.M{"text": "yangi hisobdan xabar"})
-	if err != nil {
-		t.Fatalf("count: %v", err)
-	}
-	if n != 1 {
-		t.Error("purging the old account destroyed the re-registered account's support messages")
 	}
 }
 

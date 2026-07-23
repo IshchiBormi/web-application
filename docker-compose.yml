@@ -91,23 +91,6 @@ services:
       MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017}
       MONGO_DB: ${MONGO_DB:-ishchibormi}
 
-  # Taklif/shikoyat botlari (foydalanuvchi qabul boti + admin javob boti)
-  # bitta jarayonda ishlaydi. Bot image'idagi ikkinchi binardan foydalanadi.
-  feedbackbot:
-    build:
-      context: ./bot
-      dockerfile: Dockerfile
-    container_name: ib_feedbackbot
-    restart: unless-stopped
-    depends_on:
-      mongo:
-        condition: service_healthy
-    env_file: .env
-    environment:
-      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017}
-      MONGO_DB: ${MONGO_DB:-ishchibormi}
-    entrypoint: ["/app/feedbackbot"]
-
   frontend:
     build:
       context: ./frontend

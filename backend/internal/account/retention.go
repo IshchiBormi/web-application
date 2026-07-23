@@ -61,14 +61,7 @@ type Purger struct {
 	feedback *mongo.Collection
 	codes    *mongo.Collection
 	otps     *mongo.Collection
-	// botFeedback is written by a *different process* — cmd/feedbackbot in the
-	// bot module — into the same database. It holds phone, name, Telegram
-	// username and the text/voice/photo the user sent to the support bot. It
-	// has no userId, so it is matched by the archived identity instead (see
-	// purgeBotFeedback). Missing this collection is what made the "nothing
-	// remains after 90 days" promise false.
-	botFeedback *mongo.Collection
-	storage     *storage.Service
+	storage  *storage.Service
 	// retention is the full grace period; an account is erased once
 	// deletedAt is older than this.
 	retention time.Duration
@@ -91,7 +84,6 @@ func NewPurger(db *mongo.Database, s *storage.Service, retentionDays int, log *s
 		feedback:    db.Collection("feedback"),
 		codes:       db.Collection("delete_codes"),
 		otps:        db.Collection("otp_codes"),
-		botFeedback: db.Collection("bot_feedback"),
 		storage:     s,
 		retention:   time.Duration(retentionDays) * 24 * time.Hour,
 		log:         log,
@@ -284,11 +276,6 @@ func (p *Purger) purgeUser(ctx context.Context, u models.User) error {
 		}
 	}
 
-	// --- Support-bot conversations ------------------------------------------
-	if err := p.purgeBotFeedback(ctx, u); err != nil {
-		return err
-	}
-
 	// --- The account itself -------------------------------------------------
 	// Hard delete, not another flag: this removes the name, bio, skills,
 	// region, avatar URL, ratings and the archived deletedPhone /
@@ -299,55 +286,3 @@ func (p *Purger) purgeUser(ctx context.Context, u models.User) error {
 	return nil
 }
 
-// purgeBotFeedback deletes the support-bot conversations belonging to an expired
-// account: the suggestion/complaint records in bot_feedback, each carrying the
-// sender's phone, name, Telegram username and their message — text, or a file id
-// for a voice note or photo.
-//
-// Matching is by archived identity, not userId: cmd/feedbackbot lives in a
-// separate module, writes these documents itself, and only ever knows the person
-// as a Telegram id + phone number. softDelete moves exactly those two values to
-// deletedTelegramId / deletedPhone, which is what makes the join possible at
-// all after the identity has been released.
-//
-// The createdAt bound is essential. A released phone number can be registered
-// again the next day, and the returning person is a *different account* that may
-// have written to the support bot in the meantime. Without the bound, purging
-// the old account 90 days later would delete the new account's messages too.
-// Restricting to records written before the account was deleted keeps each
-// incarnation's history with the incarnation that produced it.
-//
-// LIMITATION, disclosed on both privacy pages: voice notes and photos are not
-// stored by us. bot_feedback keeps only Telegram's file id, and the media itself
-// lives on Telegram's servers under Telegram's own retention. Deleting these
-// documents destroys our ability to reference that media, but cannot reach into
-// Telegram to erase it — no Bot API method exists for that. The same is true of
-// the chat transcript in the user's own Telegram client.
-func (p *Purger) purgeBotFeedback(ctx context.Context, u models.User) error {
-	// deletedAt is always set by softDelete/admin.DeleteUser on the records this
-	// sweep selects; the fallback keeps a hand-edited document from widening the
-	// filter to "all time".
-	cutoff := time.Now()
-	if u.DeletedAt != nil {
-		cutoff = *u.DeletedAt
-	}
-
-	identity := []bson.M{}
-	if u.DeletedTelegramID != 0 {
-		identity = append(identity, bson.M{"telegramId": u.DeletedTelegramID})
-	}
-	if u.DeletedPhone != "" {
-		identity = append(identity, bson.M{"phone": u.DeletedPhone})
-	}
-	if len(identity) == 0 {
-		// Nothing to match on: the account never had a phone or Telegram id
-		// bound, so it cannot have reached the support bot either.
-		return nil
-	}
-
-	_, err := p.botFeedback.DeleteMany(ctx, bson.M{
-		"$or":       identity,
-		"createdAt": bson.M{"$lte": cutoff},
-	})
-	return err
-}

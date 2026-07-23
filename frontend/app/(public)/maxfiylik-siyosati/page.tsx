@@ -181,15 +181,13 @@ export default function PrivacyPage() {
                 </T>
               </li>
               <li>
-                <b className="heading"><T>Qo'llab-quvvatlash boti orqali yuborganlaringiz</T>:</b>{" "}
+                <b className="heading"><T>Qo'llab-quvvatlash (Telegram)</T>:</b>{" "}
                 <T>
-                  Telegram'dagi qo'llab-quvvatlash botimizga yozsangiz, biz
-                  murojaatingizni saqlaymiz — matn xabarlari, ovozli xabarlar
-                  (voice recordings) va rasmlar, hamda telefon raqamingiz,
-                  ismingiz va Telegram foydalanuvchi nomingiz (@username).
-                  Ovozli xabar va rasmlarning o'zi Telegram serverlarida qoladi;
-                  bizda faqat Telegram bergan fayl identifikatori (file ID)
-                  saqlanadi — ya'ni faylning o'zi emas, unga havola.
+                  Yordam bo'limidagi tugma sizni Telegram'dagi qo'llab-quvvatlash
+                  akkauntimizga olib boradi. U yerda yozgan xabarlaringiz (matn,
+                  ovozli xabar, rasm) Telegram serverlarida, Telegram'ning o'z
+                  maxfiylik siyosati asosida qoladi — biz ularni o'z bazamizga
+                  SAQLAMAYMIZ.
                 </T>
               </li>
               <li>
@@ -425,10 +423,10 @@ export default function PrivacyPage() {
                 <b className="heading">Telegram:</b>{" "}
                 <T>
                   kirish kodi va hisobni o'chirish kodi Telegram bot orqali
-                  yuboriladi. Qo'llab-quvvatlash botimizga yozgan xabarlaringiz
-                  (matn, ovozli xabar, rasm) ham Telegram orqali o'tadi va
-                  ularning nusxasi Telegram serverlarida hamda sizning
-                  Telegram'ingizdagi suhbat tarixida qoladi. Telegram'ning o'z
+                  yuboriladi. Qo'llab-quvvatlash akkauntimizga yozgan
+                  xabarlaringiz (matn, ovozli xabar, rasm) Telegram orqali o'tadi
+                  va Telegram serverlarida hamda sizning Telegram'ingizdagi suhbat
+                  tarixida qoladi — biz ularni saqlamaymiz. Telegram'ning o'z
                   maxfiylik siyosati amal qiladi.
                 </T>
               </li>
@@ -561,18 +559,14 @@ export default function PrivacyPage() {
               </T>{" "}
               <b className="heading">{RETENTION_DAYS} <T>kundan keyin butunlay o'chiriladi</T></b>{" "}
               <T>
-                — buni server avtomatik bajaradi. Bunga qo'llab-quvvatlash
-                botiga yozgan murojaatlaringiz ham kiradi.
+                — buni server avtomatik bajaradi.
               </T>
             </P>
             <P>
               <T>
-                Bitta istisno bor va uni ochiq aytamiz: qo'llab-quvvatlash botiga
-                ovozli xabar yoki rasm yuborgan bo'lsangiz, ularning o'zi
-                Telegram serverlarida saqlanadi. Biz o'z bazamizdagi yozuvni va
-                unga havolani o'chiramiz, lekin Telegram'dagi nusxasini
-                o'chirishga texnik imkoniyatimiz yo'q — Telegram bot API'sida
-                bunday amal mavjud emas. Uni Telegram'dagi suhbatni o'zingiz
+                Qo'llab-quvvatlash uchun Telegram akkauntimizga yozgan
+                xabarlaringiz bizning bazamizda saqlanmaydi — ular Telegram'da
+                turadi. Ularni istalgan payt Telegram'dagi suhbatni o'zingiz
                 o'chirib tashlashingiz orqali olib tashlashingiz mumkin.
               </T>
             </P>

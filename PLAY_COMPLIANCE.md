@@ -29,19 +29,17 @@ Oxirgi tekshiruv: 2026-07-19.
 | E'lon rasmlari | `elons.images` → S3/disk | `internal/upload` |
 | Arizalar (+ ishchi telefoni) | `applications.*` | `models.Application` |
 | Bildirishnomalar | `notifications.*` | `internal/notification` |
-| Taklif/shikoyat | `feedback.*` | `models.Feedback` |
+| Taklif/shikoyat (ilova ichida) | `feedback.*` | `models.Feedback` |
 | Shikoyatlar | `reports.*` | `models.Report` |
-| **Qo'llab-quvvatlash boti murojaatlari** | `bot_feedback.*` | `bot/cmd/feedbackbot/main.go` |
-| ├ telefon, ism, Telegram username | `bot_feedback.phone/name/username` | `feedbackDoc` |
-| ├ matn xabari | `bot_feedback.text` | `contentType: "text"` |
-| └ **ovozli xabar / rasm havolasi** | `bot_feedback.fileId` | `contentType: "voice" \| "photo"` |
 | IP manzil | server jurnali + rate limit | `chi middleware.Logger`, `pkg/httpx/ratelimit` |
 
-> ⚠️ **`bot_feedback` ni unutmang.** U backend emas, **bot moduli** tomonidan
-> yoziladi (`bot/cmd/feedbackbot`), lekin **o'sha bazaga** tushadi. Kolleksiyalar
-> ro'yxatini faqat `backend/` bo'ylab `grep 'Collection("'` bilan tuzish shu
-> sababli xato natija beradi — `bot/` ni ham qo'shing:
-> `grep -rhno 'Collection("[a-z_]*")' --include=*.go backend/ bot/ | sort -u`
+> ℹ️ **Qo'llab-quvvatlash endi Telegram orqali (shaxsiy akkaunt).** 2026-07-23 dan
+> feedback/support **botlari butunlay olib tashlandi** (`bot/cmd/feedbackbot`,
+> `bot_feedback` va `support_admins` kolleksiyalari). Yordam tugmasi foydalanuvchini
+> shaxsiy Telegram akkauntiga olib boradi; u yerdagi yozishmalar **Telegram
+> serverlarida**, Telegramning o'z siyosati asosida qoladi — **bizning bazaga
+> saqlanmaydi**. Shu sababli oldingi "ovozli xabar / rasm / username yig'amiz"
+> deklaratsiyasi endi YO'Q (quyidagi Data Safety bo'limiga qarang).
 
 ### Yig'ilMAYdigan — tekshirilgan va tasdiqlangan
 
@@ -102,9 +100,9 @@ qanday so'rov `403 account_disabled` oladi.
 har 6 soatda muddati o'tganlarni topib, **butunlay o'chiradi** — user hujjati
 (shu jumladan `deletedPhone`/`deletedTelegramId`), e'lonlar, ikki tomondagi
 arizalar, bildirishnomalar, feedback, reportlar (yuborgan va u haqidagi),
-**qo'llab-quvvatlash boti murojaatlari (`bot_feedback`)**, o'chirish/OTP kodlari
-va yuklangan fayllar. Qarshi tomondagi, o'chirilgan arizalarga havola qiluvchi
-bildirishnomalar ham tozalanadi (uzilgan havola qolmasligi uchun).
+o'chirish/OTP kodlari, FCM qurilma tokenlari va yuklangan fayllar. Qarshi
+tomondagi, o'chirilgan arizalarga havola qiluvchi bildirishnomalar ham
+tozalanadi (uzilgan havola qolmasligi uchun).
 
 Muhim tafsilotlar:
 - User hujjati **eng oxirida** o'chiriladi — jarayon yarmida uzilsa, keyingi
@@ -113,21 +111,13 @@ Muhim tafsilotlar:
   shu 90 kunlik soatga bo'ysunadi** — hech qanday yozuv abadiy qolmaydi.
 - `ACCOUNT_RETENTION_DAYS` 0 yoki manfiy bo'lsa 90 kun qo'llanadi — noto'g'ri
   sozlama o'chirishni jimgina o'chirib qo'ya olmaydi.
-- `bot_feedback` da `userId` yo'q, shuning uchun **arxivlangan shaxsiyat**
-  bo'yicha topiladi (`deletedTelegramId` / `deletedPhone`) — `softDelete` aynan
-  shu ikki qiymatni saqlab qo'ygani uchun bu bog'lanish umuman mumkin.
-  Filtrda `createdAt <= deletedAt` sharti bor: bo'shatilgan raqam qayta
-  ro'yxatdan o'tishi mumkin, va eski hisobni 90 kundan keyin tozalash **yangi**
-  hisobning xabarlarini o'chirib yubormasligi kerak.
 - Testlar: `internal/account/retention_test.go` (real Mongo'ga qarshi).
 
 ### Nima o'chmaydi va NEGA (2-talab bo'yicha hujjatlashtirish)
 
 | Qoladigan narsa | Nega o'chira olmaymiz |
 |---|---|
-| Botga yuborilgan **ovozli xabar va rasm fayllarining o'zi** | Fayl bizda emas, **Telegram serverlarida** turadi; `bot_feedback` da faqat `fileId` (havola) saqlanadi. Telegram Bot API'sida boshqa foydalanuvchi yuborgan faylni o'chirish amali **umuman mavjud emas**. Biz havolani va yozuvni o'chiramiz. Foydalanuvchi Telegram'da bot bilan suhbatni o'chirsa, o'z tomonidagi nusxa ham ketadi. **Ikkala maxfiylik sahifasida ochiq yozilgan.** |
-| Foydalanuvchining Telegram'idagi **suhbat tarixi** | Bu foydalanuvchining o'z qurilmasi/Telegram hisobidagi ma'lumot — bizning nazoratimizda emas. Ochiq yozilgan. |
-| `support_admins` | Foydalanuvchi emas, **xodim** (admin) yozuvlari: admin telefoni va chat id. Foydalanuvchi shaxsiy ma'lumoti emas. |
+| Foydalanuvchining Telegram'dagi **qo'llab-quvvatlash yozishmasi** | Yordam endi shaxsiy Telegram akkaunti orqali. Bu yozishmalar **Telegram serverlarida**, foydalanuvchi va biz Telegram hisobimizda turadi — bizning bazamizga umuman saqlanmaydi. Telegramning o'z siyosati va o'chirish vositalari amal qiladi; foydalanuvchi suhbatni o'z tomonidan istalgan payt o'chira oladi. **Ikkala maxfiylik sahifasida ochiq yozilgan.** |
 | `admin_audit` | Moderatsiya harakatlari jurnali. Tozalashdan keyin unda faqat **hech narsaga ishora qilmaydigan ObjectID** qoladi — bog'langan hujjat yo'q qilingani uchun shaxsni aniqlab bo'lmaydi. Xavfsizlik/hisobdorlik uchun saqlanadi. |
 
 ---
@@ -140,7 +130,7 @@ chaqiruvlar qidirib chiqilgach quyidagilar aniqlandi:
 | Xizmat | Nima uzatiladi | Qayerdan | Manba |
 |---|---|---|---|
 | **Telegram Bot API** (auth bot) | Telegram ID, kod matni | server | `pkg/tgsend`, `bot/` |
-| **Telegram** (qo'llab-quvvatlash boti) ⚠️ | foydalanuvchi yuborgan **matn, ovozli xabar, rasm** + telefon, ism, username | foydalanuvchi → Telegram → bizning bot | `bot/cmd/feedbackbot`; ilovadan havola: `AppConstants.telegramSupportUrl` |
+| **Telegram** (qo'llab-quvvatlash — shaxsiy akkaunt) | foydalanuvchi yozgan xabarlar **Telegram'da qoladi**, bizning bazaga saqlanmaydi | foydalanuvchi → Telegram | ilovadan havola: `AppConstants.telegramSupportUrl` |
 | **AWS EC2** | barcha server ma'lumotlari (xosting) | — | `docker-compose.yml` |
 | **AWS S3** | yuklangan rasmlar | server | `pkg/storage/s3.go` |
 | **MongoDB** | barcha yozuvlar (o'z serverimizda) | — | `pkg/db` |
@@ -156,9 +146,9 @@ viloyat/tuman nomiga aylantirish uchun `nominatim.openstreetmap.org` ga
 yuboriladi. Faqat koordinata yuboriladi — ism/telefon emas. Ikkala maxfiylik
 sahifasida ham oshkor qilingan.
 
-**Google Play Services:** `geolocator` va `location` paketlari Android'da
-joylashuvni fused location provider orqali oladi. Bu — OS darajasidagi API,
-bizdan hech qanday ma'lumot uzatilmaydi.
+**Google Play Services:** `geolocator` paketi Android'da joylashuvni fused
+location provider orqali oladi. Bu — OS darajasidagi API, bizdan hech qanday
+ma'lumot uzatilmaydi.
 
 **Tekshirish usuli** (yangi bog'liqlik qo'shilganda takrorlang):
 
@@ -219,24 +209,19 @@ Quyidagi javoblar kodga asoslangan. **Topshirishdan oldin tasdiqlang.**
 |---|---|---|---|
 | Personal info | Telefon raqami | Account management, App functionality | Ha |
 | Personal info | Ism | App functionality | Ha |
-| Personal info | Boshqa (Telegram ID, Telegram username) | Account management, Customer support | Ha |
+| Personal info | Boshqa (Telegram ID) | Account management | Ha |
 | Location | Taxminiy/aniq joylashuv | App functionality | **Yo'q** (ixtiyoriy) |
-| Photos and videos | **Photos** | App functionality, **Customer support** | Yo'q |
-| **Audio** | **Voice or sound recordings** | **Customer support** | **Yo'q** |
-| Messages | Boshqa UGC (e'lon, ariza, feedback) | App functionality, Customer support | Ha |
+| Photos and videos | **Photos** | App functionality | Yo'q |
+| Messages | Boshqa UGC (e'lon, ariza, ilova ichidagi feedback) | App functionality, Customer support | Ha |
 | App activity | Boshqa (arizalar) | App functionality | Ha |
 
-⚠️ **Audio (ovozli xabar)** — bu qatorni tushirib qoldirmang. Ilova o'zi mikrofonga
-murojaat qilmaydi, lekin **Yordam bo'limidagi tugma foydalanuvchini bizning
-Telegram qo'llab-quvvatlash botimizga olib boradi** va u yerda yuborilgan ovozli
-xabar bizning bazamizga (`bot_feedback`) tushadi. Google uchun bu — ilova yo'llab
-yuborgan kanal orqali yig'ilgan ma'lumot, shuning uchun "Voice or sound
-recordings" deb e'lon qilinadi. Xuddi shu sabab bilan `Photos` uchun
-"Customer support" maqsadi ham belgilanadi.
-
-**Faqat ilovada** (bot orqali emas) yig'ilishini ta'kidlash uchun eslatma:
-mikrofon ruxsati manifestda **yo'q** — ovoz faqat Telegram ilovasi orqali
-yuboriladi.
+> ℹ️ **2026-07-23 — "Audio (Voice or sound recordings)" va "Telegram username"
+> endi YIG'ILMAYDI.** Ular feedback/support boti (`bot_feedback`) orqali kelardi;
+> bot butunlay olib tashlandi. Qo'llab-quvvatlash endi shaxsiy Telegram akkaunti
+> orqali — u yerdagi ovozli xabar/rasm/matn Telegram'da qoladi, bizga tushmaydi.
+> **Play Console Data Safety formasidan "Audio" qatorini olib tashlang**, "Photos"
+> va "Telegram ID" qatorlaridan "Customer support" maqsadini oling. Mikrofon
+> ruxsati manifestda yo'q.
 
 **Shared (uchinchi tomonga uzatiladi):** e'lon koordinatalari → Nominatim
 (viloyat/tuman aniqlash uchun). Google "service provider" transferlarini
