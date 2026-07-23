@@ -5,8 +5,10 @@ services:
     restart: unless-stopped
     # Xost 27017 da Windows MongoDB xizmati ishlayotgani uchun to'qnashmaslik
     # maqsadida Docker Mongo xostda 27018 ga chiqariladi (ichkarida esa 27017).
+    # Faqat 127.0.0.1 ga bog'lanadi: bu konteyner Mongo'si lokal dev uchun
+    # (prod Atlas ishlatadi) — serverda tashqi dunyoga ochiq DB porti bo'lmasin.
     ports:
-      - "27018:27017"
+      - "127.0.0.1:27018:27017"
     volumes:
       - mongo_data:/data/db
     healthcheck:
